@@ -4,6 +4,7 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <timers.h>
 #include <queue.h>
 
 #include "eeprom.h"
@@ -11,15 +12,25 @@
 #pragma clang diagnostic pop
 
 void comp_isr();
+void timmy_isr();
+
 void comp_task(void*);
+void timer_task(void*);
 
 TaskHandle_t lpcomp_task_handle;
+TaskHandle_t timer_task_handle;
+
+int wtf = 0;
+
+int getWtf() {
+    return wtf;
+}
 
 const cy_stc_lpcomp_config_t comp_config = {
     .outputMode    =  CY_LPCOMP_OUT_DIRECT,
     .hysteresis    =  CY_LPCOMP_HYST_ENABLE,
     .power         =  CY_LPCOMP_MODE_LP,
-    .intType       =  CY_LPCOMP_INTR_RISING,
+    .intType       =  CY_LPCOMP_INTR_BOTH
 };
 
 const cy_stc_sysint_t interrupt_config = {
@@ -28,6 +39,7 @@ const cy_stc_sysint_t interrupt_config = {
 };
 
 void init_lpcomp() {
+    BaseType_t rtos_result;
     Cy_LPComp_Init(LPCOMP, CY_LPCOMP_CHANNEL_0, &comp_config);
     Cy_LPComp_SetInputs(
         LPCOMP, CY_LPCOMP_CHANNEL_0,
@@ -42,8 +54,6 @@ void init_lpcomp() {
     Cy_LPComp_SetInterruptMask(LPCOMP, 1);
 
     // stupid rtos
-
-    BaseType_t rtos_result;
     rtos_result = xTaskCreate(comp_task, "LPComp Task", (configMINIMAL_STACK_SIZE * 4),
                               NULL, (configMAX_PRIORITIES - 3), &lpcomp_task_handle);
 
@@ -71,7 +81,28 @@ void comp_isr() {
 void comp_task(void *pvParam) {
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        printf("Tamper detected\r\n");
+        printf("Comparator task\r\n");
+
         increaseTamperCount();
     }
+}
+
+void timer_task(void *p) {
+    while (1) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        printf("Timer task! %d\r\n", wtf);
+    }
+}
+
+void timmy_isr(void) {
+    Cy_MCWDT_ClearInterrupt(MCWDT_STRUCT0, CY_MCWDT_CTR0);
+    NVIC_ClearPendingIRQ(srss_interrupt_mcwdt_0_IRQn);
+
+    BaseType_t xHigherPriorityTaskWoken;
+    xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(timer_task_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+
+    wtf++;
 }

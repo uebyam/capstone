@@ -135,7 +135,6 @@ void initEEPROM() {
 *******************************************************************************/
 uint16_t getTamperCount(void)
 {
-    int count;
     /* Return status for EEPROM. */
     cy_en_em_eeprom_status_t eeprom_return_value;
 
@@ -169,7 +168,6 @@ uint16_t getTamperCount(void)
 }
 
 uint16_t increaseTamperCount(void) {
-    int count;
     /* Return status for EEPROM. */
     cy_en_em_eeprom_status_t eeprom_return_value;
     

@@ -279,7 +279,7 @@ void print_local_bd_address(void)
 
     wiced_bt_dev_read_local_addr(local_device_bd_addr);
 
-    print_bd_address("\nMy Bluetooth Device Address: ", local_device_bd_addr);
+    print_bd_address("My Bluetooth Device Address: ", local_device_bd_addr);
 }
 
 
