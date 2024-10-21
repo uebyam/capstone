@@ -11,8 +11,9 @@
 #include "main.h"
 #pragma clang diagnostic pop
 
+
 void comp_isr();
-void timmy_isr();
+void timer_callback(void*, cyhal_lptimer_event_t);
 
 void comp_task(void*);
 void timer_task(void*);
@@ -20,17 +21,11 @@ void timer_task(void*);
 TaskHandle_t lpcomp_task_handle;
 TaskHandle_t timer_task_handle;
 
-int wtf = 0;
-
-int getWtf() {
-    return wtf;
-}
-
 const cy_stc_lpcomp_config_t comp_config = {
     .outputMode    =  CY_LPCOMP_OUT_DIRECT,
     .hysteresis    =  CY_LPCOMP_HYST_ENABLE,
-    .power         =  CY_LPCOMP_MODE_LP,
-    .intType       =  CY_LPCOMP_INTR_BOTH
+    .power         =  CY_LPCOMP_MODE_ULP,
+    .intType       =  CY_LPCOMP_INTR_FALLING
 };
 
 const cy_stc_sysint_t interrupt_config = {
@@ -38,7 +33,10 @@ const cy_stc_sysint_t interrupt_config = {
     .intrPriority  =  7
 };
 
-void init_lpcomp() {
+cyhal_lptimer_t lptimer;
+char lptimer_running = 0;
+
+void init_lpcomp(char rtos) {
     BaseType_t rtos_result;
     Cy_LPComp_Init(LPCOMP, CY_LPCOMP_CHANNEL_0, &comp_config);
     Cy_LPComp_SetInputs(
@@ -53,16 +51,39 @@ void init_lpcomp() {
 
     Cy_LPComp_SetInterruptMask(LPCOMP, 1);
 
-    // stupid rtos
-    rtos_result = xTaskCreate(comp_task, "LPComp Task", (configMINIMAL_STACK_SIZE * 4),
-                              NULL, (configMAX_PRIORITIES - 3), &lpcomp_task_handle);
 
-    if (rtos_result == pdPASS) {
-        printf("LPComp task created\r\n");
-        Cy_SysInt_Init(&interrupt_config, comp_isr);
-        NVIC_EnableIRQ(interrupt_config.intrSrc);
+    if (rtos) {
+        // stupid rtos
+        rtos_result = xTaskCreate(
+                comp_task, "LPComp Task", (configMINIMAL_STACK_SIZE * 4),
+                NULL, (configMAX_PRIORITIES - 3), &lpcomp_task_handle
+                );
+
+        if (rtos_result == pdPASS) {
+            printf("LPComp task created\r\n");
+            Cy_SysInt_Init(&interrupt_config, comp_isr);
+            NVIC_ClearPendingIRQ(interrupt_config.intrSrc);
+            NVIC_EnableIRQ(interrupt_config.intrSrc);
+        } else {
+            printf("LPComp task creation failed\r\n");
+        }
+
+
+        rtos_result = xTaskCreate(
+                timer_task, "Drop Detection Task", (configMINIMAL_STACK_SIZE * 4),
+                NULL, (configMAX_PRIORITIES - 3), &timer_task_handle
+                );
+
+        if (rtos_result == pdPASS) {
+            printf("Timer task created\r\n");
+
+            cyhal_lptimer_init(&lptimer);
+            cyhal_lptimer_register_callback(&lptimer, timer_callback, &lptimer);
+            cyhal_lptimer_enable_event(&lptimer, CYHAL_LPTIMER_COMPARE_MATCH, 4, 1);
+        } else {
+            printf("Timer task creation failed\r\n");
+        }
     }
-    else printf("LPComp task creation failed\r\n");
 }
 
 void comp_isr() {
@@ -81,28 +102,35 @@ void comp_isr() {
 void comp_task(void *pvParam) {
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        printf("Comparator task\r\n");
+        printf("Possible tamper detected, waiting for drop detection\r\n");
 
-        increaseTamperCount();
+        if (!lptimer_running) {
+            lptimer_running = 1;
+            cyhal_lptimer_set_delay(&lptimer, 8192);
+        }
     }
+}
+
+void timer_callback(void *refcon, cyhal_lptimer_event_t event) {
+    BaseType_t xHigherPriorityTaskWoken;
+    xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(timer_task_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void timer_task(void *p) {
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        printf("Timer task! %d\r\n", wtf);
+        if (!lptimer_running) continue;
+
+        if (Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0) == 0) {
+            printf("Detected tamper!\r\n");
+            increaseTamperCount();
+        } else {
+            printf("Did not detect tamper\r\n");
+        }
+
+        lptimer_running = 0;
     }
-}
-
-void timmy_isr(void) {
-    Cy_MCWDT_ClearInterrupt(MCWDT_STRUCT0, CY_MCWDT_CTR0);
-    NVIC_ClearPendingIRQ(srss_interrupt_mcwdt_0_IRQn);
-
-    BaseType_t xHigherPriorityTaskWoken;
-    xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(timer_task_handle, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-
-    wtf++;
 }

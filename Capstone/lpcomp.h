@@ -5,6 +5,6 @@
 #include "cyhal.h"
 #include "cy_pdl.h"
 
-void init_lpcomp(void);
+void init_lpcomp(char rtos);
 
 #endif

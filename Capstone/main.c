@@ -49,7 +49,10 @@ static void bt_app_init(void);
 static void app_start_advertisement(void);
 
 void ess_task(void *pvParam);
-void ess_timer_callb(void *callback_arg, cyhal_timer_event_t event);
+void ess_timer_callb(void *callback_arg, cyhal_lptimer_event_t event);
+
+// got no header file for this so i'm putting extern here as a message
+extern void idle_task();
 
 int main(void) {
     if (Cy_SysPm_IoIsFrozen())
@@ -63,18 +66,17 @@ int main(void) {
 
     CY_ASSERT(CY_RSLT_SUCCESS == cybsp_init());
     __enable_irq();
-    CY_ASSERT(CY_RSLT_SUCCESS == cyhal_hwmgr_init());
+    cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, CY_RETARGET_IO_BAUDRATE);
+
+    init_userbutton();
+    init_lpcomp(1);
+    initEEPROM();
 
     uxTopUsedPriority = configMAX_PRIORITIES - 1;
     wiced_result_t wiced_result;
     BaseType_t rtos_result;
 
-    cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, CY_RETARGET_IO_BAUDRATE);
     cyhal_gpio_init(CONNECTION_LED, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, CYBSP_LED_STATE_OFF);
-
-    init_lpcomp();
-    init_userbutton();
-    initEEPROM();
 
     printf("****** Tamper Sensing Service ******\n");
 
@@ -127,12 +129,12 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
         break;
 
     case BTM_BLE_ADVERT_STATE_CHANGED_EVT:
-        printf("BLUETOOTH --> Advertisement state changed to %s",
+        printf("BLUETOOTH --> Advertisement state changed to %s\n",
                 get_btm_advert_mode_name(p_event_data->ble_advert_state_changed));
         break;
 
     default:
-        printf(" (!!! unhandled !!!)");
+        printf(" (!!! unhandled !!!)\n");
         break;
     }
 
@@ -175,7 +177,7 @@ static wiced_result_t app_bt_set_advertisement_data(void) {
     return (wiced_result);
 }
 
-void ess_timer_callb(void *callback_arg, cyhal_timer_event_t event) {
+void ess_timer_callb(void *callback_arg, cyhal_lptimer_event_t event) {
     BaseType_t xHigherPriorityTaskWoken;
     xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(ess_task_handle, &xHigherPriorityTaskWoken);
@@ -209,8 +211,8 @@ void ess_task(void *pvParam) {
             printf("Sent notification status 0x%x\n", gatt_status);
         } else {
             printf(app_bt_conn_id 
-                    ? "Notifications off on host\r\n" 
-                    : "Not connected\r\n");
+                    ? "Notifications off on host\n" 
+                    : "Not connected\n");
         }
 
         // block until next timr cycle
