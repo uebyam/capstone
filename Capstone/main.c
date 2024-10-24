@@ -1,5 +1,7 @@
+#ifdef __clang___
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "cybsp.h"
 #include "cy_retarget_io.h"
 #include "cybt_platform_trace.h"
@@ -23,9 +25,13 @@
 #include "cycfg_gap.h"
 #include "cybsp_bt_config.h"
 #include "cy_em_eeprom.h"
+#ifdef __clang___
 #pragma clang diagnostic pop
+#endif
 
 #include "main.h"
+bool global_bluetooth_started = false;
+
 #include "eeprom.h"
 #include "lpcomp.h"
 #include "userbutton.h"
@@ -73,21 +79,11 @@ int main(void) {
     initEEPROM();
 
     uxTopUsedPriority = configMAX_PRIORITIES - 1;
-    wiced_result_t wiced_result;
     BaseType_t rtos_result;
 
     cyhal_gpio_init(CONNECTION_LED, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, CYBSP_LED_STATE_OFF);
 
     printf("****** Tamper Sensing Service ******\n");
-
-    cybt_platform_config_init(&cybsp_bt_platform_cfg);
-    wiced_result = wiced_bt_stack_init(app_bt_management_callback, &wiced_bt_cfg_settings);
-
-    if (WICED_BT_SUCCESS == wiced_result) {
-        printf("Bluetooth Stack Initialization Successful\n");
-    } else {
-        printf("Bluetooth Stack Initialization failed!!\n");
-    }
 
     rtos_result = xTaskCreate(ess_task, "ESS Task", (configMINIMAL_STACK_SIZE * 4),
                               NULL, (configMAX_PRIORITIES - 3), &ess_task_handle);
@@ -102,12 +98,27 @@ int main(void) {
 
     printf("Current tamper count: %u\n", tamper_count);
 
+    // Bluetooth application initialisation is started from user button
     vTaskStartScheduler();
 
     // Should never get here
-    CY_ASSERT(0);
+    printf("Program termination\r\n");
 }
 
+void start_bt() {
+    global_bluetooth_started = true;
+    wiced_result_t wiced_result;
+
+    cybt_platform_config_init(&cybsp_bt_platform_cfg);
+    wiced_result = wiced_bt_stack_init(app_bt_management_callback, &wiced_bt_cfg_settings);
+
+    if (WICED_BT_SUCCESS == wiced_result) {
+        printf("Bluetooth Stack Initialization Successful\n");
+    } else {
+        printf("Bluetooth Stack Initialization failed!!\n");
+        global_bluetooth_started = false;
+    }
+}
 
 static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event, wiced_bt_management_evt_data_t *p_event_data) {
     printf("BLUETOOTH --> Event: ");
@@ -143,7 +154,6 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
 
 static void bt_app_init(void) {
     wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_ERROR;
-    cy_rslt_t rslt;
 
     gatt_status = wiced_bt_gatt_register(app_bt_gatt_event_callback);
     printf("BLUETOOTH --> [bt_app_init] gatt_register status: %s\n", get_gatt_status_name(gatt_status));

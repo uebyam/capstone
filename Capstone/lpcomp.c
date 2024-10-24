@@ -1,5 +1,7 @@
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
+#endif
 #include "lpcomp.h"
 
 #include <FreeRTOS.h>
@@ -9,7 +11,9 @@
 
 #include "eeprom.h"
 #include "main.h"
+#ifdef clang
 #pragma clang diagnostic pop
+#endif
 
 
 void comp_isr();
@@ -94,9 +98,6 @@ void comp_isr() {
     xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(lpcomp_task_handle, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-
-    vTaskNotifyGiveFromISR(get_ess_handle(), &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void comp_task(void *pvParam) {
@@ -127,6 +128,10 @@ void timer_task(void *p) {
         if (Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0) == 0) {
             printf("Detected tamper!\r\n");
             increaseTamperCount();
+
+            if (global_bluetooth_started) {
+                xTaskNotifyGive(get_ess_handle());
+            }
         } else {
             printf("Did not detect tamper\r\n");
         }
