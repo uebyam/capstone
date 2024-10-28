@@ -12,6 +12,7 @@
 #include "cyhal_system.h"
 #include "cyhal_uart.h"
 #include "string.h"
+#include "ansi.h"
 #include <time.h>
 
 /*******************************************************************************
@@ -125,7 +126,7 @@ static int get_week_of_month(int day, int month, int year);
 *******************************************************************************/
 void handle_error(void)
 {
-    printf("RTC Error");
+    LOG_ERR("RTC Error");
     /* Disable all interrupts. */
     __disable_irq();
 
@@ -140,9 +141,8 @@ void init_rtc(void) {
         handle_error();
     }
     
-    printf("input in HH MM SS DD MM YY\n");
+    LOG_INFO("input in HH MM SS DD MM YY\n");
     set_time(INPUT_TIMEOUT_MS);
-
 }
 
 void read_rtc(struct tm *date_time){
@@ -442,8 +442,8 @@ static void set_time(uint32_t timeout_ms)
     {
         if (space_count != MIN_SPACE_KEY_COUNT)
         {
-            printf("\rInvalid values! Please enter the"
-                    "values in specified format\r\n");
+            LOG_WARN("\rInvalid values! Please enter the"
+                    "values in specified format\n");
         }
         else
         {
@@ -464,23 +464,24 @@ static void set_time(uint32_t timeout_ms)
                 rslt = cyhal_rtc_write(&rtc_obj, &new_time);
                 if (CY_RSLT_SUCCESS == rslt)
                 {
-                    printf("\rRTC time updated\r\n\n");
+                    LOG_DEBUG("\rRTC time updated\r\n\n");
                 }
                 else
                 {
+                    LOG_ERR("Writing RTC time failed\n");
                     handle_error();
                 }
             }
             else
             {
-                printf("\rInvalid values! Please enter the values in specified"
+                LOG_WARN("\rInvalid values! Please enter the values in specified"
                        " format\r\n");
             }
         }
     }
     else
     {
-        printf("\rTimeout \r\n");
+        LOG_ERR("\rTimeout \r\n");
     }
 }
 /*******************************************************************************
@@ -537,7 +538,7 @@ static cy_rslt_t fetch_time_data(char *buffer, uint32_t timeout_ms,
 
         timeout_ms -= UART_TIMEOUT_MS;
     }
-    printf("\n\r");
+    LOG_INFO_NOFMT("\n\r");
     return rslt;
 }
 

@@ -45,7 +45,7 @@
  *                              INCLUDES
  * ****************************************************************************/
 #include "app_bt_gatt_handler.h"
-#include "app_bt_utils.h"
+#include "bt_utils.h"
 #include "GeneratedSource/cycfg_gatt_db.h"
 #include "cyhal_gpio.h"
 #include "cybt_platform_trace.h"
@@ -57,6 +57,8 @@
 #include <queue.h>
 #include <string.h>
 #include <timers.h>
+
+#include "ansi.h"
 
 /*******************************************************************************
  *                              FUNCTION DECLARATIONS
@@ -95,6 +97,7 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
                            wiced_bt_gatt_event_data_t *p_event_data)
 {
 
+
     wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_ERROR;
     wiced_bt_gatt_attribute_request_t *p_attr_req = NULL;
 
@@ -104,10 +107,12 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
     {
 
     case GATT_CONNECTION_STATUS_EVT:
+        LOG_DEBUG("GATT event %s (%d)\n", get_gatt_event_name(event), event);
         gatt_status = app_gatt_connect_handler(&p_event_data->connection_status);
         break;
 
     case GATT_ATTRIBUTE_REQUEST_EVT:
+        LOG_DEBUG("GATT event %s (%d)\n", get_gatt_event_name(event), event);
         p_attr_req = &p_event_data->attribute_request;
         gatt_status = app_gatts_attr_req_handler(p_attr_req,
                                                  &error_handle);
@@ -124,8 +129,9 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
 
     case GATT_GET_RESPONSE_BUFFER_EVT:
     {
+        LOG_DEBUG("GATT event %s (%d)\n", get_gatt_event_name(event), event);
         wiced_bt_gatt_buffer_request_t *p_buf_req = &p_event_data->buffer_request;
-        printf("len_req %d \n", p_buf_req->len_requested);
+        LOG_DEBUG("len_req %d\n", p_buf_req->len_requested);
         p_buf_req->buffer.p_app_rsp_buffer = app_alloc_buffer(p_buf_req->len_requested);
         p_buf_req->buffer.p_app_ctxt = (void *)app_free_buffer;
         gatt_status = WICED_BT_GATT_SUCCESS;
@@ -134,6 +140,7 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
 
     case GATT_APP_BUFFER_TRANSMITTED_EVT:
     {
+        LOG_DEBUG("GATT event %s (%d)\n", get_gatt_event_name(event), event);
         pfn_free_buffer_t pfn_free;
         pfn_free = (pfn_free_buffer_t)p_event_data->buffer_xmitted.p_app_ctxt;
         /* If the buffer is dynamic, the context will point to a function to
@@ -148,7 +155,7 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
        break;
 
     default:
-        printf("Unhandled GATT Event %d", event);
+        LOG_WARN("Unhandled GATT event %s (%d)\n", get_gatt_event_name(event), event);
         break;
 
     }
@@ -179,7 +186,7 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
     {
         /* Device has connected */
         print_bd_address("\nConnected to BDA:", p_conn_status->bd_addr);
-        printf("Connection ID: '%d'\n", p_conn_status->conn_id);
+        LOG_DEBUG("Connection ID: '%d'\n", p_conn_status->conn_id);
 
         cyhal_gpio_write(CONNECTION_LED, CYBSP_LED_STATE_ON);
 
@@ -193,8 +200,8 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
     {
         /* Device has disconnected */
         print_bd_address("\nDisconnected from BDA: ", p_conn_status->bd_addr);
-        printf("Connection ID: '%d'\n", p_conn_status->conn_id);
-        printf("\nReason for disconnection: \t%s\n",                        \
+        LOG_DEBUG("Connection ID: '%d'\n", p_conn_status->conn_id);
+        LOG_INFO("\nReason for disconnection: \t%s\n",                        \
                         get_gatt_disconn_reason_name(p_conn_status->reason));
 
         cyhal_gpio_write(CONNECTION_LED, CYBSP_LED_STATE_OFF);
@@ -273,7 +280,7 @@ app_gatts_attr_req_handler(wiced_bt_gatt_attribute_request_t *p_attr_req,
             break;
 
         case GATT_HANDLE_VALUE_NOTIF:
-            printf("Notfication send complete\n");
+            LOG_INFO("Notfication send complete\n");
             break;
 
         case GATT_REQ_READ_BY_TYPE:
@@ -285,7 +292,7 @@ app_gatts_attr_req_handler(wiced_bt_gatt_attribute_request_t *p_attr_req,
             break;
 
         default:
-            printf("ERROR: Unhandled GATT Connection Request case: %d\n", p_attr_req->opcode);
+            LOG_WARN("Unhandled GATT Connection Request case: %s (%d)\n", get_gatt_opcode_name(p_attr_req->opcode), p_attr_req->opcode);
             break;
 
     }
@@ -384,7 +391,7 @@ app_gatt_attr_write_handler(wiced_bt_gatt_opcode_t opcode,
     index = app_get_attr_index_by_handle(p_write_req->handle);
     if(INVALID_ATT_TBL_INDEX == index)
     {
-        printf("Invalid ATT TBL Index : %d\n", index);
+        LOG_WARN("Invalid ATT TBL Index : %d\n", index);
         return gatt_status;
     }
 
@@ -393,7 +400,7 @@ app_gatt_attr_write_handler(wiced_bt_gatt_opcode_t opcode,
                                             p_write_req->val_len);
     if( WICED_BT_GATT_SUCCESS != gatt_status )
     {
-        printf("WARNING: GATT set attr status 0x%x\n", gatt_status);
+        LOG_WARN("GATT set attr status 0x%x\n", gatt_status);
     }
 
     return (gatt_status);
@@ -428,10 +435,10 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
     int         used = 0;
     int         filled = 0;
 
-    printf("len_requested %d \n", len_requested);
+    LOG_DEBUG("len_requested %d \n", len_requested);
     if (p_rsp == NULL)
     {
-        printf("OOM, len_requested: %d !! \r\n",len_requested);
+        LOG_ERR("OOM, len_requested: %d !! \r\n",len_requested);
         return WICED_BT_GATT_INSUF_RESOURCE;
     }
 
@@ -450,7 +457,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
         index = app_get_attr_index_by_handle(attr_handle);
         if (INVALID_ATT_TBL_INDEX != index)
         {
-            printf("attr_handle %x \n", attr_handle );
+            LOG_DEBUG("attr_handle %x \n", attr_handle );
             filled = wiced_bt_gatt_put_read_by_type_rsp_in_stream( p_rsp + used,
                                                         len_requested - used,
                                                         &pair_len,
@@ -459,7 +466,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
                                         app_gatt_db_ext_attr_tbl[index].p_data);
             if (filled == 0)
             {
-                printf("No data is filled\n");
+                LOG_WARN("No data is filled\n");
                 break;
             }
             used += filled;
@@ -475,7 +482,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
 
     if (used == 0)
     {
-       printf("attr not found  start_handle: 0x%04x  end_handle: 0x%04x  Type: 0x%04x\r\n",
+       LOG_ERR("attr not found  start_handle: 0x%04x  end_handle: 0x%04x  Type: 0x%04x\r\n",
                p_read_req->s_handle, p_read_req->e_handle, p_read_req->uuid.uu.uuid16);
         app_free_buffer(p_rsp);
         return WICED_BT_GATT_INVALID_HANDLE;

@@ -1,8 +1,8 @@
-#include "wiced_bt_gatt.h"
-#ifdef __clang___
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
 #endif
+#include "wiced_bt_gatt.h"
 #include "cybsp.h"
 #include "cy_retarget_io.h"
 #include "cybt_platform_trace.h"
@@ -17,7 +17,7 @@
 #include <timers.h>
 #include "GeneratedSource/cycfg_gatt_db.h"
 #include "app_bt_gatt_handler.h"
-#include "app_bt_utils.h"
+#include "bt_utils.h"
 #include "wiced_bt_ble.h"
 #include "wiced_bt_uuid.h"
 #include "wiced_memory.h"
@@ -26,7 +26,9 @@
 #include "cycfg_gap.h"
 #include "cybsp_bt_config.h"
 #include "cy_em_eeprom.h"
-#ifdef __clang___
+
+#include "ansi.h"
+#ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
@@ -57,21 +59,8 @@ static void bt_app_init(void);
 static void app_start_advertisement(void);
 
 void ess_task(void *pvParam);
-void ess_timer_callb(void *callback_arg, cyhal_lptimer_event_t event);
-
-// got no header file for this so i'm putting extern here as a message
-extern void idle_task();
 
 int main(void) {
-    if (Cy_SysPm_IoIsFrozen())
-        Cy_SysPm_IoUnfreeze();
-
-    bool didHib = false;
-    if (Cy_SysLib_GetResetReason() & CY_SYSLIB_RESET_HIB_WAKEUP) {
-        Cy_SysLib_ClearResetReason();
-        didHib = true;
-    }
-
     CY_ASSERT(CY_RSLT_SUCCESS == cybsp_init());
     __enable_irq();
     cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, CY_RETARGET_IO_BAUDRATE);
@@ -86,26 +75,26 @@ int main(void) {
 
     cyhal_gpio_init(CONNECTION_LED, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, CYBSP_LED_STATE_OFF);
 
-    printf("****** Tamper Sensing Service ******\n");
+    LOG_INFO("****** Tamper Sensing Service ******\n");
 
     rtos_result = xTaskCreate(ess_task, "ESS Task", (configMINIMAL_STACK_SIZE * 4),
                               NULL, (configMAX_PRIORITIES - 3), &ess_task_handle);
 
     if (pdPASS == rtos_result) {
-        printf("ESS task created successfully\n");
+        LOG_DEBUG("ESS task created successfully\n");
     } else {
-        printf("ESS task creation failed\n");
+        LOG_ERR("ESS task creation failed\n");
     }
 
     uint16_t tamper_count = getTamperCount();
 
-    printf("Current tamper count: %u\n", tamper_count);
+    LOG_DEBUG("Current tamper count: %u\n", tamper_count);
 
     // Bluetooth application initialisation is started from user button
     vTaskStartScheduler();
 
     // Should never get here
-    printf("Program termination\r\n");
+    LOG_ERR("Program termination\r\n");
 }
 
 void start_bt() {
@@ -116,54 +105,59 @@ void start_bt() {
     wiced_result = wiced_bt_stack_init(app_bt_management_callback, &wiced_bt_cfg_settings);
 
     if (WICED_BT_SUCCESS == wiced_result) {
-        printf("Bluetooth Stack Initialization Successful\n");
+        LOG_INFO("Bluetooth Stack Initialization Successful\n");
     } else {
-        printf("Bluetooth Stack Initialization failed!!\n");
+        LOG_FATAL("Bluetooth Stack Initialization failed!!\n");
         global_bluetooth_started = false;
     }
 }
 
 static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event, wiced_bt_management_evt_data_t *p_event_data) {
-    printf("BLUETOOTH --> Event: ");
-    printf("%s", get_btm_event_name(event));
-
     switch (event) {
+        case BTM_ENABLED_EVT:
+            LOG_DEBUG(" -- Bluetooth event: %s\n", get_btm_event_name(event));
+            LOG_INFO("Bluetooth enabled\n");
+            LOG_DEBUG("Device name: %s\n", app_gap_device_name);
 
-    case BTM_ENABLED_EVT:
-        printf("\nBLUETOOTH --> Device name: %s\n", app_gap_device_name);
+            LOG_DEBUG("");
+            print_local_bd_address();
 
-        printf("BLUETOOTH --> ");
-        print_local_bd_address();
+            bt_app_init();
+            break;
 
-        bt_app_init();
-        break;
+        case BTM_DISABLED_EVT:
+            LOG_WARN("Bluetooth disabled\n");
+            break;
 
-    case BTM_DISABLED_EVT:
-        printf("BLUETOOTH --> Bluetooth disabled\n");
-        break;
+        case BTM_BLE_ADVERT_STATE_CHANGED_EVT:
+            LOG_INFO("Advertisement state changed to %s\n",
+                    get_ble_advert_mode_name(p_event_data->ble_advert_state_changed));
+            break;
 
-    case BTM_BLE_ADVERT_STATE_CHANGED_EVT:
-        printf("BLUETOOTH --> Advertisement state changed to %s\n",
-                get_btm_advert_mode_name(p_event_data->ble_advert_state_changed));
-        break;
-
-    default:
-        printf(" (!!! unhandled !!!)\n");
-        break;
+        default:
+            LOG_WARN("Unhandled bluetooth event: %s (%d)\n", get_btm_event_name(event), event);
+            break;
     }
 
-    return WICED_ERROR;
+    return WICED_SUCCESS;
 }
 
 static void bt_app_init(void) {
     wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_ERROR;
 
     gatt_status = wiced_bt_gatt_register(app_bt_gatt_event_callback);
-    printf("BLUETOOTH --> [bt_app_init] gatt_register status: %s\n", get_gatt_status_name(gatt_status));
+    if (gatt_status) {
+        LOG_ERR("GATT registration failed with %s\n", get_gatt_status_name(gatt_status));
+    } else {
+        LOG_DEBUG("GATT registration returned %s\n", get_gatt_status_name(gatt_status));
+    }
 
     gatt_status = wiced_bt_gatt_db_init(gatt_database, gatt_database_len, NULL);
-    if (WICED_BT_GATT_SUCCESS != gatt_status)
-        printf("BLUETOOTH --> [bt_app_init] GATT DB Initialization err 0x%x\n", gatt_status);
+    if (gatt_status) {
+        LOG_ERR("GATT database initialisation failed with %s\n", get_gatt_status_name(gatt_status));
+    } else {
+        LOG_DEBUG("GATT database initialisation returned %s\n", get_gatt_status_name(gatt_status));
+    }
 
     app_start_advertisement();
 }
@@ -172,14 +166,17 @@ static void app_start_advertisement(void) {
     wiced_result_t wiced_status;
 
     wiced_status = app_bt_set_advertisement_data();
-    if (WICED_SUCCESS != wiced_status)
-        printf("BLUETOOTH --> [app_start_advertisement] Raw advertisement failed err 0x%x\n", wiced_status);
+    if (WICED_SUCCESS != wiced_status) {
+        LOG_ERR("Setting raw advertisement data failed with %s (0x%x)\n", get_wiced_result_name(wiced_status), wiced_status);
+    } else {
+        LOG_DEBUG("Setting raw advertisement data succeeded\n");
+    }
 
     wiced_bt_set_pairable_mode(WICED_FALSE, FALSE);
 
     wiced_status = wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH, BLE_ADDR_PUBLIC, NULL);
     if (WICED_SUCCESS != wiced_status) {
-        printf("BLUETOOTH --> [app_start_advertisement] Starting undirected Bluetooth LE advertisements failed err 0x%x\n", wiced_status);
+        LOG_ERR("Starting undirected Bluetooth LE advertisements failed err 0x%x\n", wiced_status);
     }
 }
 
@@ -190,14 +187,6 @@ static wiced_result_t app_bt_set_advertisement_data(void) {
     return (wiced_result);
 }
 
-void ess_timer_callb(void *callback_arg, cyhal_lptimer_event_t event) {
-    BaseType_t xHigherPriorityTaskWoken;
-    xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(ess_task_handle, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
-
-
 void ess_task(void *pvParam) {
     int timestamps[MAX_TIMESTAMP_COUNT];
     while (true) {
@@ -205,37 +194,40 @@ void ess_task(void *pvParam) {
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
         getTimestamps(timestamps);
-        printf("\n");
+        LOG_DEBUG("Timestamp information: ");
+        LOG_DEBUG("");
         memcpy(app_tamper_information_timestamps, timestamps, tamperCount*TIMESTAMP_SIZE);
         for (int i = 0; i < tamperCount; i++) {
-            printf("%d ", timestamps[i]);
+            LOG_DEBUG_NOFMT("%d ", timestamps[i]);
         }
-        printf("\n");
+        LOG_DEBUG_NOFMT("\n");
+        LOG_DEBUG("");
         for (int i = 0; i < tamperCount; i++) {
             int t;
             memcpy(&t, &app_tamper_information_timestamps[i*4], 4);
             printf("%d ", t);
         }
-        printf("\n");
+        LOG_DEBUG_NOFMT("\n");
 
-        if (IS_NOTIFIABLE(app_bt_conn_id, app_tamper_information_tamper_count_client_char_config[0])) {
-            wiced_bt_gatt_status_t gatt_status_tamper, gatt_status_timestamp;
-
-            gatt_status_tamper = wiced_bt_gatt_server_send_indication(
-                    app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
-                    app_tamper_information_tamper_count_len, app_tamper_information_tamper_count, 
-                    NULL);
-            
-            // gatt_status_tamper = wiced_bt_gatt_server_send_indication(
-            //         app_bt_conn_id, HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE, 
-            //         app_tamper_information_timestamps_len, app_tamper_information_timestamps, 
-            //         NULL);
-            
-            printf("Sent notifications statuses \ttamper: 0x%x \t timestamps: 0x%x\n", gatt_status_tamper, gatt_status_timestamp);
-        } else {
-            printf(app_bt_conn_id 
-                    ? "Notifications off on host\n" 
-                    : "Not connected\n");
+        switch (app_tamper_information_tamper_count_client_char_config[0]) {
+            case 0:
+                LOG_INFO(app_bt_conn_id
+                        ? "Notifications/indications off on host"
+                        : "Not connected");
+                break;
+            case 3:
+            case 1:
+                wiced_bt_gatt_server_send_indication(
+                        app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE,
+                        app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
+                        NULL);
+                break;
+            case 2:
+                wiced_bt_gatt_server_send_notification(
+                        app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
+                        app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
+                        NULL);
+                break;
         }
 
         // block until next timr cycle

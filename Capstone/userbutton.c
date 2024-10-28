@@ -10,6 +10,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "main.h"
+#include "ansi.h"
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
@@ -31,8 +32,10 @@ void init_userbutton() {
             );
 
     if (rtos_rslt != pdPASS) {
-        printf("User button task creation failed\r\n");
+        LOG_ERR("User button task creation failed\r\n");
         return;
+    } else {
+        LOG_DEBUG("Successfully created user button task\n");
     }
 }
 
@@ -64,7 +67,7 @@ void userbutton_task(void *refcon) {
         if (!global_bluetooth_started) {
             start_bt();
         } else {
-            printf("Bluetooth already started\r\n");
+            LOG_WARN("Bluetooth already started; taking no action\n");
         }
     }
 }

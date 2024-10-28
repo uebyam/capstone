@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "rtc.h"
+#include "ansi.h"
 
 /*******************************************************************************
  * Macros
@@ -157,8 +158,11 @@ uint8_t increaseTamperCount(void) {
     tamper_count += 1;
     
     read_rtc(&date_time);
+    LOG_DEBUG("RTC Read result: %02u:%02u:%02u %02u/%02u/%02u\n",
+            date_time.tm_hour, date_time.tm_min, date_time.tm_sec,
+            date_time.tm_mday, date_time.tm_mon, date_time.tm_year);
     timestamp = convert_rtc_to_int(&date_time);
-    printf("\n%d\n", timestamp);
+    LOG_DEBUG("Converted timestamp: %u\n", timestamp);
     
     eeprom_return_value = Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION + TIMESTAMP_SIZE * (tamper_count-1),
                                             &timestamp,
@@ -238,14 +242,14 @@ void handle_eeprom_result(uint32_t status, char *message)
 
             if(NULL != message)
             {
-                printf("%s",message);
+                LOG_ERR("%s",message);
             }
 
             while(1u);
         }
         else
         {
-            printf("%s","Main copy is corrupted. Redundant copy in Emulated EEPROM is used \r\n");
+            LOG_WARN("%s","Main copy is corrupted. Redundant copy in Emulated EEPROM is used \r\n");
         }
 
     }

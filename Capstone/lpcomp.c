@@ -11,6 +11,8 @@
 
 #include "eepromManager.h"
 #include "main.h"
+#include "ansi.h"
+
 #ifdef clang
 #pragma clang diagnostic pop
 #endif
@@ -64,12 +66,12 @@ void init_lpcomp(char rtos) {
                 );
 
         if (rtos_result == pdPASS) {
-            printf("LPComp task created\r\n");
+            LOG_DEBUG("Successfully created LPComp task\r\n");
             Cy_SysInt_Init(&interrupt_config, comp_isr);
             NVIC_ClearPendingIRQ(interrupt_config.intrSrc);
             NVIC_EnableIRQ(interrupt_config.intrSrc);
         } else {
-            printf("LPComp task creation failed\r\n");
+            LOG_ERR("LPComp task creation failed\r\n");
         }
 
 
@@ -79,13 +81,13 @@ void init_lpcomp(char rtos) {
                 );
 
         if (rtos_result == pdPASS) {
-            printf("Timer task created\r\n");
+            LOG_DEBUG("Timer task created\r\n");
 
             cyhal_lptimer_init(&lptimer);
             cyhal_lptimer_register_callback(&lptimer, timer_callback, &lptimer);
             cyhal_lptimer_enable_event(&lptimer, CYHAL_LPTIMER_COMPARE_MATCH, 4, 1);
         } else {
-            printf("Timer task creation failed\r\n");
+            LOG_ERR("Timer task creation failed\r\n");
         }
     }
 }
@@ -103,7 +105,7 @@ void comp_isr() {
 void comp_task(void *pvParam) {
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        printf("Possible tamper detected, waiting for drop detection\r\n");
+        LOG_DEBUG("Possible tamper detected, waiting for drop detection\r\n");
 
         if (!lptimer_running) {
             lptimer_running = 1;
@@ -126,14 +128,14 @@ void timer_task(void *p) {
         if (!lptimer_running) continue;
 
         if (Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0) == 0) {
-            printf("Detected tamper!\r\n");
+            LOG_INFO("Detected tamper!\r\n");
             increaseTamperCount();
 
             if (global_bluetooth_started) {
                 xTaskNotifyGive(get_ess_handle());
             }
         } else {
-            printf("Did not detect tamper\r\n");
+            LOG_DEBUG("Did not detect tamper\r\n");
         }
 
         lptimer_running = 0;
