@@ -185,7 +185,7 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
     if ((p_conn_status->connected) && (0 == app_bt_conn_id))
     {
         /* Device has connected */
-        print_bd_address("\nConnected to BDA:", p_conn_status->bd_addr);
+        print_bd_address("Connected to BDA:", p_conn_status->bd_addr);
         LOG_DEBUG("Connection ID: '%d'\n", p_conn_status->conn_id);
 
         cyhal_gpio_write(CONNECTION_LED, CYBSP_LED_STATE_ON);
@@ -199,9 +199,9 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
     else
     {
         /* Device has disconnected */
-        print_bd_address("\nDisconnected from BDA: ", p_conn_status->bd_addr);
+        print_bd_address("Disconnected from BDA: ", p_conn_status->bd_addr);
         LOG_DEBUG("Connection ID: '%d'\n", p_conn_status->conn_id);
-        LOG_INFO("\nReason for disconnection: \t%s\n",                        \
+        LOG_INFO("Reason for disconnection: \t%s\n",                        \
                         get_gatt_disconn_reason_name(p_conn_status->reason));
 
         cyhal_gpio_write(CONNECTION_LED, CYBSP_LED_STATE_OFF);
