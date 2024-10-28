@@ -6,7 +6,7 @@
 #endif
 #include "cybsp.h"
 #include "cyhal.h"
-#include "eeprom.h"
+#include "eepromManager.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "main.h"

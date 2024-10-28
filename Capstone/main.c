@@ -1,3 +1,4 @@
+#include "wiced_bt_gatt.h"
 #ifdef __clang___
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
@@ -32,15 +33,16 @@
 #include "main.h"
 bool global_bluetooth_started = false;
 
-#include "eeprom.h"
+#include "eepromManager.h"
 #include "lpcomp.h"
 #include "userbutton.h"
+#include "rtc.h"
 
 #ifndef ABS
 #define ABS(N) ((N < 0) ? (-N) : (N))
 #endif
 
-#define IS_NOTIFIABLE(conn_id, cccd) (((conn_id) != 0) ? (cccd) & GATT_CLIENT_CONFIG_INDICATION : 0)
+#define IS_NOTIFIABLE(conn_id, cccd) (((conn_id) != 0) ? (cccd) & GATT_CLIENT_CONFIG_NOTIFICATION : 0)
 
 volatile int uxTopUsedPriority;
 extern const wiced_bt_cfg_settings_t wiced_bt_cfg_settings;
@@ -77,6 +79,7 @@ int main(void) {
     init_userbutton();
     init_lpcomp(1);
     initEEPROM();
+    init_rtc();
 
     uxTopUsedPriority = configMAX_PRIORITIES - 1;
     BaseType_t rtos_result;
@@ -196,29 +199,39 @@ void ess_timer_callb(void *callback_arg, cyhal_lptimer_event_t event) {
 
 
 void ess_task(void *pvParam) {
-    static uint16_t lastVal = 0;
-    lastVal = getTamperCount();
-
+    int timestamps[MAX_TIMESTAMP_COUNT];
     while (true) {
         uint16_t tamperCount = getTamperCount();
-
-        if (tamperCount != lastVal) {
-            for (int i = 0; i < 2; i++) {
-                cyhal_gpio_toggle(CYBSP_USER_LED);
-                Cy_SysLib_Delay(50);
-            }
+        *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
+        
+        getTimestamps(timestamps);
+        printf("\n");
+        memcpy(app_tamper_information_timestamps, timestamps, tamperCount*TIMESTAMP_SIZE);
+        for (int i = 0; i < tamperCount; i++) {
+            printf("%d ", timestamps[i]);
         }
-        lastVal = tamperCount;
+        printf("\n");
+        for (int i = 0; i < tamperCount; i++) {
+            int t;
+            memcpy(&t, &app_tamper_information_timestamps[i*4], 4);
+            printf("%d ", t);
+        }
+        printf("\n");
 
-        *(uint16_t*)app_bas_battery_information = tamperCount;
+        if (IS_NOTIFIABLE(app_bt_conn_id, app_tamper_information_tamper_count_client_char_config[0])) {
+            wiced_bt_gatt_status_t gatt_status_tamper, gatt_status_timestamp;
 
-        if (IS_NOTIFIABLE(app_bt_conn_id, app_bas_battery_information_client_char_config[0])) {
-            wiced_bt_gatt_status_t gatt_status = wiced_bt_gatt_server_send_indication(
-                    app_bt_conn_id, HDLC_BAS_BATTERY_INFORMATION_VALUE, 
-                    app_bas_battery_information_len, app_bas_battery_information, 
+            gatt_status_tamper = wiced_bt_gatt_server_send_indication(
+                    app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
+                    app_tamper_information_tamper_count_len, app_tamper_information_tamper_count, 
                     NULL);
-
-            printf("Sent notification status 0x%x\n", gatt_status);
+            
+            // gatt_status_tamper = wiced_bt_gatt_server_send_indication(
+            //         app_bt_conn_id, HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE, 
+            //         app_tamper_information_timestamps_len, app_tamper_information_timestamps, 
+            //         NULL);
+            
+            printf("Sent notifications statuses \ttamper: 0x%x \t timestamps: 0x%x\n", gatt_status_tamper, gatt_status_timestamp);
         } else {
             printf(app_bt_conn_id 
                     ? "Notifications off on host\n" 

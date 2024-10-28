@@ -2,29 +2,30 @@
 #include "cybsp.h"
 #include "cy_retarget_io.h"
 #include "cy_em_eeprom.h"
-
+#include <stdint.h>
+#include <stdbool.h>
+#include "rtc.h"
 
 /*******************************************************************************
  * Macros
  ******************************************************************************/
-/* Logical Size of Emulated EEPROM in bytes. */
-#define LOGICAL_EEPROM_SIZE     (15u)
-#define LOGICAL_EEPROM_START    (0u)
-
-
+/* 
+emEEPROM organised in the following way:
+Tamper count - 1byte
+Timestamps - up to 80bytes
+ */
 /* Location of reset counter in Em_EEPROM. */
-#define RESET_COUNT_LOCATION    (13u)
-/* Size of reset counter in bytes. */
-#define COUNT_SIZE        (2u)
+#define TAMPER_COUNT_LOCATION (0u)
+#define TAMPER_COUNT_SIZE (1u)
 
-/* ASCII "9" */
-#define ASCII_NINE              (0x39)
+#define TIMESTAMP_LOCATION TAMPER_COUNT_SIZE
+#define TIMESTAMP_SIZE (4u)
+#define MAX_TIMESTAMP_COUNT (20)
 
-/* ASCII "0" */
-#define ASCII_ZERO              (0x30)
 
-/* ASCII "P" */
-#define ASCII_INTIAL                 (0x54)
+/* Logical Size of Emulated EEPROM in bytes. */
+#define LOGICAL_EEPROM_SIZE     (TIMESTAMP_LOCATION + MAX_TIMESTAMP_COUNT * TIMESTAMP_SIZE)
+#define LOGICAL_EEPROM_START    (0u)
 
 /* EEPROM Configuration details. All the sizes mentioned are in bytes.
  * For details on how to configure these values refer to cy_em_eeprom.h. The
@@ -52,13 +53,11 @@
 #define FLASH_REGION_TO_USE     USER_FLASH
 #endif
 
-// #define GPIO_LOW                (0u)
 
 /*******************************************************************************
  * Function Prototypes
  ******************************************************************************/
-void handle_error(uint32_t status, char *message);
-
+void handle_eeprom_result(uint32_t status, char *message);
 
 /*******************************************************************************
  * Global variables
@@ -102,13 +101,8 @@ const uint8_t eeprom_storage[CY_EM_EEPROM_GET_PHYSICAL_SIZE(EEPROM_SIZE, SIMPLE_
 
 /* RAM arrays for holding EEPROM read and write data respectively. */
 uint8_t eeprom_read_array[LOGICAL_EEPROM_SIZE];
-uint8_t eeprom_write_array[RESET_COUNT_LOCATION] = { 0x54, 0x61, 0x6D, 0x70, 0x65, 0x72, 0x43, 0x6F, 0x75, 0x6E, 0x74, 0x20, 0x23};;
-                                                /* P, o, w, e, r, , C, y, c, l, e, #, ' ' */
-uint16_t tampers_count = 0;
 
 void initEEPROM() {
-    printf("EmEEPROM demo \r\n");
-
     cy_en_em_eeprom_status_t eeprom_return_value;
 
 #if (defined(CY_DEVICE_SECURE) && (USER_FLASH == FLASH_REGION_TO_USE ))
@@ -118,7 +112,7 @@ void initEEPROM() {
 #endif
 
     eeprom_return_value = Cy_Em_EEPROM_Init(&Em_EEPROM_config, &Em_EEPROM_context);
-    handle_error(eeprom_return_value, "Emulated EEPROM Initialization Error \r\n");
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Initialization Error \r\n");
 }
 
 /*******************************************************************************
@@ -135,103 +129,89 @@ void initEEPROM() {
 *******************************************************************************/
 uint16_t getTamperCount(void)
 {
-    /* Return status for EEPROM. */
+    uint8_t tamper_count;
     cy_en_em_eeprom_status_t eeprom_return_value;
 
     /* Read 15 bytes out of EEPROM memory. */
-    eeprom_return_value = Cy_Em_EEPROM_Read(LOGICAL_EEPROM_START, eeprom_read_array,
-                                          LOGICAL_EEPROM_SIZE, &Em_EEPROM_context);
-    handle_error(eeprom_return_value, "Emulated EEPROM Read failed \r\n");
-
-
-    /* If first byte of EEPROM is not 'P', then write the data for initializing
-     * the EEPROM content.
-     */
-    if(ASCII_INTIAL != eeprom_read_array[0])
-    {
-        /* Write initial data to EEPROM. */
-        eeprom_return_value = Cy_Em_EEPROM_Write(LOGICAL_EEPROM_START,
-                                               eeprom_write_array,
-                                               RESET_COUNT_LOCATION,
-                                               &Em_EEPROM_context);
-        eeprom_return_value = Cy_Em_EEPROM_Write(RESET_COUNT_LOCATION,
-                                               (uint8_t[2]){0, 0},
-                                               COUNT_SIZE,
-                                               &Em_EEPROM_context);
-        handle_error(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
-
-        return 0;
-    }
+    eeprom_return_value = Cy_Em_EEPROM_Read(TAMPER_COUNT_LOCATION, &tamper_count,
+                                          TAMPER_COUNT_SIZE, &Em_EEPROM_context);
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Read failed \r\n");
     
-    tampers_count = eeprom_read_array[RESET_COUNT_LOCATION] * 256 + eeprom_read_array[RESET_COUNT_LOCATION+1];
-    return tampers_count;
+    return tamper_count;
 }
 
-uint16_t increaseTamperCount(void) {
+uint8_t increaseTamperCount(void) {
     /* Return status for EEPROM. */
     cy_en_em_eeprom_status_t eeprom_return_value;
+
+    struct tm date_time;
+    int timestamp;
+    uint8_t tamper_count;
     
     /* Read 15 bytes out of EEPROM memory. */
-    eeprom_return_value = Cy_Em_EEPROM_Read(LOGICAL_EEPROM_START, eeprom_read_array,
-                                          LOGICAL_EEPROM_SIZE, &Em_EEPROM_context);
-    handle_error(eeprom_return_value, "Emulated EEPROM Read failed \r\n");
+    eeprom_return_value = Cy_Em_EEPROM_Read(TAMPER_COUNT_LOCATION, &tamper_count,
+                                          TAMPER_COUNT_SIZE, &Em_EEPROM_context);
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Read failed \r\n");
+    
 
+    tamper_count += 1;
+    
+    read_rtc(&date_time);
+    timestamp = convert_rtc_to_int(&date_time);
+    printf("\n%d\n", timestamp);
+    
+    eeprom_return_value = Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION + TIMESTAMP_SIZE * (tamper_count-1),
+                                            &timestamp,
+                                            TIMESTAMP_SIZE,
+                                            &Em_EEPROM_context);
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
 
-    /* If first byte of EEPROM is not 'P', then write the data for initializing
-     * the EEPROM content.
-     */
-    if(ASCII_INTIAL != eeprom_read_array[0])
-    {
-        /* Write initial data to EEPROM. */
-        eeprom_return_value = Cy_Em_EEPROM_Write(LOGICAL_EEPROM_START,
-                                               eeprom_write_array,
-                                               RESET_COUNT_LOCATION,
-                                               &Em_EEPROM_context);
-        eeprom_return_value = Cy_Em_EEPROM_Write(RESET_COUNT_LOCATION,
-                                               (uint8_t[2]){0, 0},
-                                               COUNT_SIZE,
-                                               &Em_EEPROM_context);
-        handle_error(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
+    
+    /* Only update the two count values in the EEPROM. */
+    eeprom_return_value = Cy_Em_EEPROM_Write(TAMPER_COUNT_LOCATION,
+                                            &tamper_count,
+                                            TAMPER_COUNT_SIZE,
+                                            &Em_EEPROM_context);
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
 
-        return 0;
-    }
-
-    else
-    {   
-        tampers_count = eeprom_read_array[RESET_COUNT_LOCATION] * 256 + eeprom_read_array[RESET_COUNT_LOCATION+1];
-        tampers_count += 1;
-
-        uint8_t count_array[2] = {(tampers_count-tampers_count%256)/256, tampers_count%256};
-
-
-        /* Only update the two count values in the EEPROM. */
-        eeprom_return_value = Cy_Em_EEPROM_Write(RESET_COUNT_LOCATION,
-                                               count_array,
-                                               COUNT_SIZE,
-                                               &Em_EEPROM_context);
-        handle_error(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
-
-        return tampers_count;
-    }
+    return tamper_count;
 }
 
-void setTamperCount(uint16_t val) {
+void setTamperCount(uint8_t val) {
     cy_en_em_eeprom_status_t eeprom_return_value;
-
-    eeprom_return_value = Cy_Em_EEPROM_Write(LOGICAL_EEPROM_START,
-                                             eeprom_write_array,
-                                             RESET_COUNT_LOCATION,
-                                             &Em_EEPROM_context);
-    eeprom_return_value = Cy_Em_EEPROM_Write(RESET_COUNT_LOCATION,
+    eeprom_return_value = Cy_Em_EEPROM_Write(TAMPER_COUNT_LOCATION,
                                              &val,
                                              sizeof val,
                                              &Em_EEPROM_context);
 
-    handle_error(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
+}
+
+void getTimestamps(int *timestamps) {
+    uint8_t tamper_count;
+    cy_en_em_eeprom_status_t eeprom_return_value;
+    // int timestamps[MAX_TIMESTAMP_COUNT];
+
+    tamper_count = getTamperCount();
+    
+    /* Read 15 bytes out of EEPROM memory. */
+    eeprom_return_value = Cy_Em_EEPROM_Read(TIMESTAMP_LOCATION, timestamps,
+                                          TIMESTAMP_SIZE*tamper_count, &Em_EEPROM_context);
+    if (tamper_count > 0) {
+        eeprom_return_value = Cy_Em_EEPROM_Read(TIMESTAMP_LOCATION, timestamps,
+                                            TIMESTAMP_SIZE*tamper_count, &Em_EEPROM_context);;
+        handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
+    } else {
+        memset(timestamps, 0, MAX_TIMESTAMP_COUNT * 4);
+    }
+
+    // for (int i = 0; i < MAX_TIMESTAMP_COUNT; i++) {}
+    return;
+    // printf("\n%d %d %d %d %d %d\n", thing, CY_EM_EEPROM_BAD_PARAM, CY_EM_EEPROM_BAD_CHECKSUM, CY_EM_EEPROM_BAD_DATA, CY_EM_EEPROM_WRITE_FAIL, CY_EM_EEPROM_REDUNDANT_COPY_USED);
 }
 
 /*******************************************************************************
-* Function Name: handle_error
+* Function Name: handle_eeprom_result
 ********************************************************************************
 *
 * Summary:
@@ -246,7 +226,7 @@ void setTamperCount(uint16_t val) {
 * Note: If error occurs interrupts are disabled.
 *
 *******************************************************************************/
-void handle_error(uint32_t status, char *message)
+void handle_eeprom_result(uint32_t status, char *message)
 {
 
     if(CY_EM_EEPROM_SUCCESS != status)

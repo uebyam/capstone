@@ -1,11 +1,11 @@
 [
     {
-        "asset-name": "block-storage",
-        "locked-commit": "release-v1.1.0"
-    },
-    {
         "asset-name": "abstraction-rtos",
         "locked-commit": "release-v1.8.2"
+    },
+    {
+        "asset-name": "block-storage",
+        "locked-commit": "release-v1.1.0"
     },
     {
         "asset-name": "btstack",

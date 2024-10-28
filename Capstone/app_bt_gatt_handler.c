@@ -206,7 +206,9 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
          * Reset the CCCD value so that on a reconnect CCCD (notifications)
          * will be off
          */
-        app_bas_battery_information_client_char_config[0] = 0;
+        // app_custom_service_custom_characteristic_client_char_config[0] = 0;
+        app_tamper_information_tamper_count_client_char_config[0] = 1;
+        app_tamper_information_timestamps_client_char_config[0] = 1;
         gatt_status = wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
                                                     BLE_ADDR_PUBLIC,
                                                     NULL);
@@ -509,13 +511,30 @@ wiced_bt_gatt_status_t app_set_gatt_attr_value(uint16_t attr_handle,
 {
     wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_INVALID_HANDLE;
       /* Check for a matching handle entry */
-      if (HDLD_BAS_BATTERY_INFORMATION_CLIENT_CHAR_CONFIG == attr_handle)
+      if (HDLD_TAMPER_INFORMATION_TAMPER_COUNT_CLIENT_CHAR_CONFIG == attr_handle)
       {
           /* Verify that size constraints have been met */
-          if (app_bas_battery_information_client_char_config_len >= len)
+          if (app_tamper_information_tamper_count_client_char_config_len >= len)
           {
               /* Value fits within the supplied buffer; copy over the value */
-              memcpy(app_bas_battery_information_client_char_config,
+              memcpy(app_tamper_information_tamper_count_client_char_config,
+                     p_val,
+                     len);
+
+              gatt_status = WICED_BT_GATT_SUCCESS;
+          }
+          else
+          {
+              /* Value to write does not meet size constraints */
+              gatt_status = WICED_BT_GATT_INVALID_ATTR_LEN;
+          }
+      } else if (HDLD_TAMPER_INFORMATION_TIMESTAMPS_CLIENT_CHAR_CONFIG == attr_handle)
+      {
+          /* Verify that size constraints have been met */
+          if (app_tamper_information_timestamps_client_char_config_len >= len)
+          {
+              /* Value fits within the supplied buffer; copy over the value */
+              memcpy(app_tamper_information_timestamps_client_char_config,
                      p_val,
                      len);
 

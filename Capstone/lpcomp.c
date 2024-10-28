@@ -9,7 +9,7 @@
 #include <timers.h>
 #include <queue.h>
 
-#include "eeprom.h"
+#include "eepromManager.h"
 #include "main.h"
 #ifdef clang
 #pragma clang diagnostic pop
