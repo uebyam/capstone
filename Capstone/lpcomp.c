@@ -131,9 +131,7 @@ void timer_task(void *p) {
             LOG_INFO("Detected tamper!\r\n");
             increaseTamperCount();
 
-            if (global_bluetooth_started) {
-                xTaskNotifyGive(get_ess_handle());
-            }
+            xTaskNotifyGive(get_ess_handle());
         } else {
             LOG_DEBUG("Did not detect tamper\r\n");
         }

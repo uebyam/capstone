@@ -159,7 +159,7 @@ int convert_rtc_to_int(struct tm *date_time) {
 
 void convert_rtc_to_str(struct tm *date_time, char *date_string) {
     strftime(date_string, STRING_BUFFER_SIZE, "%c", date_time); 
-    printf("%s\r\n", date_string);
+    LOG_DEBUG("%s\n", date_string);
 }
 
 /*******************************************************************************
@@ -226,23 +226,23 @@ static void set_dst_feature(uint32_t timeout_ms)
     {
         if (cyhal_rtc_is_dst(&rtc_obj))
         {
-            printf("\rCurrent DST Status :: Active\r\n\n");
+            LOG_INFO("Current DST Status :: Active\r\n\n");
         }
         else
         {
-            printf("\rCurrent DST Status :: Inactive\r\n\n");
+            LOG_INFO("Current DST Status :: Inactive\r\n\n");
         }
     }
     else
     {
-        printf("\rCurrent DST Status :: Disabled\r\n\n");
+        LOG_INFO("Current DST Status :: Disabled\r\n\n");
     }
 
     /* Display available commands */
-    printf("Available DST commands \r\n");
-    printf("1 : Enable DST feature\r\n");
-    printf("2 : Disable DST feature\r\n");
-    printf("3 : Quit DST Configuration\r\n\n");
+    LOG_INFO("Available DST commands \r\n");
+    LOG_INFO("1 : Enable DST feature\r\n");
+    LOG_INFO("2 : Disable DST feature\r\n");
+    LOG_INFO("3 : Quit DST Configuration\r\n\n");
 
     rslt = cyhal_uart_getc(&cy_retarget_io_uart_obj, &dst_cmd, timeout_ms);
 
@@ -251,21 +251,21 @@ static void set_dst_feature(uint32_t timeout_ms)
         if (RTC_CMD_ENABLE_DST == dst_cmd)
         {
             /* Get DST start time information */
-            printf("Enter DST format \r\n");
-            printf("1 : Fixed DST format\r\n");
-            printf("2 : Relative DST format\r\n\n");
+            LOG_INFO("Enter DST format \r\n");
+            LOG_INFO("1 : Fixed DST format\r\n");
+            LOG_INFO("2 : Relative DST format\r\n\n");
 
             rslt = cyhal_uart_getc(&cy_retarget_io_uart_obj, &fmt, timeout_ms);
             if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
             {
-            printf("Enter DST start time in \"HH MM SS dd mm yyyy\" format\r\n");
+            LOG_INFO("Enter DST start time in \"HH MM SS dd mm yyyy\" format\r\n");
                 rslt = fetch_time_data(dst_start_buffer, timeout_ms,
                                                         &space_count);
                 if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
                 {
                     if (space_count != MIN_SPACE_KEY_COUNT)
                     {
-                        printf("\rInvalid values! Please enter "
+                        LOG_INFO("Invalid values! Please enter "
                         "the values in specified format\r\n");
                     }
                     else
@@ -296,21 +296,21 @@ static void set_dst_feature(uint32_t timeout_ms)
                     }
                     else
                     {
-                        printf("\rInvalid values! Please enter the values"
+                        LOG_INFO("Invalid values! Please enter the values"
                                    " in specified format\r\n");
                     }
                     }
                 }
                 else
                 {
-                    printf("\rTimeout \r\n");
+                    LOG_INFO("Timeout \r\n");
                 }
 
                 if (DST_VALID_START_TIME_FLAG == dst_data_flag)
                 {
                     /* Get DST end time information,
                     iff a valid DST start time information is received */
-                    printf("Enter DST end time "
+                    LOG_INFO("Enter DST end time "
                     " in \"HH MM SS dd mm yyyy\" format\r\n");
                     rslt = fetch_time_data(dst_end_buffer, timeout_ms,
                                             &space_count);
@@ -318,7 +318,7 @@ static void set_dst_feature(uint32_t timeout_ms)
                     {
                         if (space_count != MIN_SPACE_KEY_COUNT)
                         {
-                            printf("\rInvalid values! Please"
+                            LOG_INFO("Invalid values! Please"
                             "enter the values in specified format\r\n");
                         }
                         else
@@ -349,14 +349,14 @@ static void set_dst_feature(uint32_t timeout_ms)
                             }
                             else
                             {
-                                printf("\rInvalid values! Please enter the "
+                                LOG_INFO("Invalid values! Please enter the "
                                        " values in specified format\r\n");
                             }
                         }
                     }
                     else
                     {
-                        printf("\rTimeout \r\n");
+                        LOG_INFO("Timeout \r\n");
                     }
                 }
 
@@ -367,7 +367,7 @@ static void set_dst_feature(uint32_t timeout_ms)
                     if (CY_RSLT_SUCCESS == rslt)
                     {
                         dst_data_flag = DST_ENABLED_FLAG;
-                        printf("\rDST time updated\r\n\n");
+                        LOG_INFO("DST time updated\r\n\n");
                     }
                     else
                     {
@@ -377,7 +377,7 @@ static void set_dst_feature(uint32_t timeout_ms)
             }
             else
             {
-                printf("\rTimeout \r\n");
+                LOG_INFO("Timeout \r\n");
             }
         }
         else if (RTC_CMD_DISABLE_DST == dst_cmd)
@@ -393,7 +393,7 @@ static void set_dst_feature(uint32_t timeout_ms)
             if (CY_RSLT_SUCCESS == rslt)
             {
                 dst_data_flag = DST_DISABLED_FLAG;
-                printf("\rDST feature disabled\r\n\n");
+                LOG_INFO("DST feature disabled\r\n\n");
             }
             else
             {
@@ -402,12 +402,12 @@ static void set_dst_feature(uint32_t timeout_ms)
         }
         else if (RTC_CMD_QUIT_CONFIG_DST == dst_cmd)
         {
-            printf("\rExit from DST Configuration \r\n\n");
+            LOG_INFO("Exit from DST Configuration \r\n\n");
         }
     }
     else
     {
-        printf("\rTimeout \r\n");
+        LOG_INFO("Timeout \r\n");
     }
 }
 
@@ -435,14 +435,13 @@ static void set_time(uint32_t timeout_ms)
     struct tm new_time = {0};
 
 
-    // printf("\rEnter time in \"HH MM SS dd mm yyyy\" format \r\n");
     rslt = fetch_time_data(buffer, timeout_ms, &space_count);
     
     if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
     {
         if (space_count != MIN_SPACE_KEY_COUNT)
         {
-            LOG_WARN("\rInvalid values! Please enter the"
+            LOG_WARN("Invalid values! Please enter the"
                     "values in specified format\n");
         }
         else
@@ -464,7 +463,7 @@ static void set_time(uint32_t timeout_ms)
                 rslt = cyhal_rtc_write(&rtc_obj, &new_time);
                 if (CY_RSLT_SUCCESS == rslt)
                 {
-                    LOG_DEBUG("\rRTC time updated\r\n\n");
+                    LOG_DEBUG("RTC time updated\n");
                 }
                 else
                 {
@@ -474,14 +473,14 @@ static void set_time(uint32_t timeout_ms)
             }
             else
             {
-                LOG_WARN("\rInvalid values! Please enter the values in specified"
-                       " format\r\n");
+                LOG_WARN("Invalid values! Please enter the values in specified"
+                       " format\n");
             }
         }
     }
     else
     {
-        LOG_ERR("\rTimeout \r\n");
+        LOG_ERR("Timeout\n");
     }
 }
 /*******************************************************************************
@@ -538,7 +537,7 @@ static cy_rslt_t fetch_time_data(char *buffer, uint32_t timeout_ms,
 
         timeout_ms -= UART_TIMEOUT_MS;
     }
-    LOG_INFO_NOFMT("\n\r");
+    LOG_INFO_NOFMT("\n");
     return rslt;
 }
 

@@ -117,7 +117,7 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
         case BTM_ENABLED_EVT:
             LOG_DEBUG(" -- Bluetooth event: %s\n", get_btm_event_name(event));
             LOG_INFO("Bluetooth enabled\n");
-            LOG_DEBUG("Device name: %s\n", app_gap_device_name);
+            LOG_INFO("Device name: %s\n", app_gap_device_name);
 
             LOG_DEBUG("");
             print_local_bd_address();
@@ -194,7 +194,7 @@ void ess_task(void *pvParam) {
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
         getTimestamps(timestamps);
-        LOG_DEBUG("Timestamp information: ");
+        LOG_DEBUG("Timestamp information:\n");
         LOG_DEBUG("");
         memcpy(app_tamper_information_timestamps, timestamps, tamperCount*TIMESTAMP_SIZE);
         for (int i = 0; i < tamperCount; i++) {
@@ -205,29 +205,54 @@ void ess_task(void *pvParam) {
         for (int i = 0; i < tamperCount; i++) {
             int t;
             memcpy(&t, &app_tamper_information_timestamps[i*4], 4);
-            printf("%d ", t);
+            LOG_DEBUG_NOFMT("%d ", t);
         }
         LOG_DEBUG_NOFMT("\n");
 
-        switch (app_tamper_information_tamper_count_client_char_config[0]) {
-            case 0:
-                LOG_INFO(app_bt_conn_id
-                        ? "Notifications/indications off on host"
-                        : "Not connected");
-                break;
-            case 3:
-            case 1:
-                wiced_bt_gatt_server_send_indication(
-                        app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE,
-                        app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
-                        NULL);
-                break;
-            case 2:
-                wiced_bt_gatt_server_send_notification(
-                        app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
-                        app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
-                        NULL);
-                break;
+        if (global_bluetooth_started) {
+            switch (app_tamper_information_tamper_count_client_char_config[0]) {
+                case 0:
+                    LOG_INFO(app_bt_conn_id
+                            ? "Notifications/indications for tamper count off on host\n"
+                            : "Not connected\n");
+                    break;
+                case 3:
+                case 1:
+                    wiced_bt_gatt_server_send_indication(
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE,
+                            app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
+                            NULL);
+                    break;
+                case 2:
+                    wiced_bt_gatt_server_send_notification(
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
+                            app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
+                            NULL);
+                    break;
+            }
+
+            switch (app_tamper_information_timestamps_client_char_config[0]) {
+                case 0:
+                    LOG_INFO(app_bt_conn_id
+                            ? "Notifications/indications for timestamps off on host\n"
+                            : "Not connected\n");
+                    break;
+                case 3:
+                case 1:
+                    wiced_bt_gatt_server_send_indication(
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE,
+                            app_tamper_information_timestamps_len, app_tamper_information_timestamps,
+                            NULL);
+                    break;
+                case 2:
+                    wiced_bt_gatt_server_send_notification(
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
+                            app_tamper_information_timestamps_len, app_tamper_information_timestamps,
+                            NULL);
+                    break;
+            }
+        } else {
+            LOG_DEBUG("ESS task called when bluetooth was not started; no action taken\n");
         }
 
         // block until next timr cycle
