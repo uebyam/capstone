@@ -13,7 +13,7 @@
 #include "main.h"
 #include "ansi.h"
 
-#ifdef clang
+#ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 

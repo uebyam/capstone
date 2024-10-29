@@ -63,6 +63,7 @@ void ess_task(void *pvParam);
 int main(void) {
     CY_ASSERT(CY_RSLT_SUCCESS == cybsp_init());
     __enable_irq();
+
     cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, CY_RETARGET_IO_BAUDRATE);
 
     init_userbutton();
