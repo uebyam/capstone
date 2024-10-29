@@ -58,9 +58,9 @@ Timestamps - up to 80bytes
  * Function Prototypes
  ******************************************************************************/
 void initEEPROM(void);
-void setTamperCount(uint16_t val);
-uint16_t getTamperCount(void);
-uint16_t increaseTamperCount(void);
+void setTamperCount(uint8_t val);
+uint8_t getTamperCount(void);
+uint8_t increaseTamperCount(void);
 void getTimestamps(int *timestamps);
 
 /*******************************************************************************
