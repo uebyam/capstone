@@ -11,6 +11,7 @@
 #include "task.h"
 #include "main.h"
 #include "ansi.h"
+#include "uart.h"
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
@@ -19,6 +20,8 @@ void userbutton_isr(void);
 void userbutton_task(void*);
 
 TaskHandle_t userbutton_task_handle;
+
+char times_pressed = 0;
 
 void init_userbutton() {
     // TODO
@@ -53,9 +56,14 @@ void userbutton_isr() {
     Cy_GPIO_ClearInterrupt(GPIO_PRT0, 4);
     NVIC_ClearPendingIRQ(ioss_interrupts_gpio_0_IRQn);
 
-    BaseType_t higherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(userbutton_task_handle, &higherPriorityTaskWoken);
-    portYIELD_FROM_ISR(higherPriorityTaskWoken);
+    if (times_pressed == 0) {
+        times_pressed++;
+        global_uart_host = 1;
+    } else {
+        BaseType_t higherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(userbutton_task_handle, &higherPriorityTaskWoken);
+        portYIELD_FROM_ISR(higherPriorityTaskWoken);
+    }
 }
 
 void userbutton_task(void *refcon) {

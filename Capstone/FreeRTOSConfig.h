@@ -210,7 +210,7 @@ standard names - or at least those used in the unmodified vector table. */
  */
 extern void vApplicationSleep( uint32_t xExpectedIdleTime );
 #define portSUPPRESS_TICKS_AND_SLEEP( xIdleTime ) vApplicationSleep( xIdleTime )
-#define configUSE_TICKLESS_IDLE                 2
+#define configUSE_TICKLESS_IDLE                 0
 
 #else
 #define configUSE_TICKLESS_IDLE                 0
