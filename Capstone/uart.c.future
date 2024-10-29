@@ -1,0 +1,288 @@
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+#include "uart.h"
+bool global_uart_enabled = 0;
+bool global_uart_host = 0;
+
+#include <FreeRTOS.h>
+#include <task.h>
+#include <timers.h>
+#include <queue.h>
+
+#include "main.h"
+#include "ansi.h"
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+#define CASE_RETURN_STR(const)          case const: return #const;
+
+const char *get_scb_uart_status_name(cy_en_scb_uart_status_t status);
+const char *get_sysclk_status_name(cy_en_sysclk_status_t status);
+
+TaskHandle_t uart_tx_task_handle;
+TaskHandle_t uart_rx_task_handle;
+// NOTE: FreeRTOS imers are susceptible to processor lag.
+// TODO: update to use better things than freertos timers
+TimerHandle_t uart_tx_timer_handle;
+
+enum uart_en_msg_type_e {
+    // diffie-hellman key exchange + encryption scheme negotiation data
+    UART_MSG_TYPE_NEGOTIATION = 0,  // have to spell it out for yall
+
+    // no telling
+    UART_MSG_TYPE_ENC = 1,
+
+    // keepalive
+    UART_MSG_TYPE_KEEPALIVE = 2,
+};
+typedef uint16_t uart_en_msg_type_t;
+
+typedef struct {
+    uint16_t p, g, s[8];
+} uart_nego_data_t;
+
+typedef struct {
+    uint8_t bytes[16];
+} uart_enc_data_t;
+
+typedef struct {
+    uint8_t fine;
+    uint8_t unused[13];
+} uart_keepalive_t;
+
+typedef struct {
+    uart_en_msg_type_t msg_type;
+    union {
+        uart_keepalive_t keepalive;
+    };
+} uart_msg_t;
+
+typedef struct {
+    uart_en_msg_type_t msg_type;
+    union {
+        uart_nego_data_t nego_data;
+        uart_enc_data_t enc_data;
+    };
+} uart_packet_t;
+
+uint16_t my_secret[8] = {};
+
+const cy_stc_scb_uart_config_t uart_cfg = {
+    .uartMode = CY_SCB_UART_STANDARD,
+    .oversample = 12,        // NOTE: Need to change if peripheral clock changes
+    .dataWidth = 8,
+    .parity = CY_SCB_UART_PARITY_NONE,
+    .stopBits = CY_SCB_UART_STOP_BITS_1,
+    .breakWidth = 11,
+    .enableMsbFirst = 0
+};
+
+const cy_stc_sysint_t uart_intr_cfg = {
+    .intrSrc = scb_1_interrupt_IRQn,
+    .intrPriority = 6
+};
+
+uint8_t div_num = 255, div_type;
+
+void uart_rx_isr() {
+    Cy_SCB_SetRxInterruptMask(UART_SCB, 0);
+
+    BaseType_t higherPriorityTaskWoken;
+    vTaskNotifyGiveFromISR(uart_rx_task_handle, &higherPriorityTaskWoken);
+    portYIELD_FROM_ISR(higherPriorityTaskWoken);
+}
+
+void uart_rx_task(void *arg) {
+    Cy_SysInt_Init(&uart_intr_cfg, uart_rx_isr);
+    NVIC_ClearPendingIRQ(uart_intr_cfg.intrSrc);
+
+    uart_packet_t packet;
+    uart_msg_t msg;
+
+    for (;;) {
+        Cy_SCB_SetRxFifoLevel(UART_SCB, sizeof(uart_en_msg_type_t) - 1);
+        Cy_SCB_SetRxInterruptMask(UART_SCB, CY_SCB_RX_INTR_LEVEL);
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        int32_t to_rcv = sizeof packet.msg_type;
+        int32_t has_rcv = 0;
+        while (to_rcv > 0) {
+            has_rcv += Cy_SCB_UART_GetArray(UART_SCB, ((char*)&packet.msg_type) + has_rcv, to_rcv);
+            to_rcv -= has_rcv;
+        }
+
+        if (packet.msg_type == UART_MSG_TYPE_ENC) {
+            Cy_SCB_SetRxFifoLevel(UART_SCB, sizeof(packet.enc_data) - 1);
+            Cy_SCB_SetRxInterruptMask(UART_SCB, CY_SCB_RX_INTR_LEVEL);
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            
+            to_rcv = sizeof packet.enc_data;
+            has_rcv = 0;
+            while (to_rcv > 0) {
+                has_rcv += Cy_SCB_UART_GetArray(UART_SCB, ((char*)&packet.enc_data) + has_rcv, to_rcv);
+                to_rcv -= has_rcv;
+            }
+            
+            // TODO: decryption
+            
+            memcpy(&msg, &packet.enc_data, sizeof packet.enc_data);
+            
+            switch (msg.msg_type) {
+                case UART_MSG_TYPE_KEEPALIVE:
+                    LOG_DEBUG("Partner sent keepalive\n");
+                    xTimerReset(uart_tx_timer_handle, 0);
+                    break;
+
+                default:
+                    LOG_WARN("UART partner sent unknown message %u (0x%04x)\n", msg.msg_type, msg.msg_type);
+            }
+        } else if (packet.msg_type == UART_MSG_TYPE_NEGOTIATION) {
+            Cy_SCB_SetRxFifoLevel(UART_SCB, sizeof(packet.nego_data) - 1);
+            Cy_SCB_SetRxInterruptMask(UART_SCB, CY_SCB_RX_INTR_LEVEL);
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+            to_rcv = sizeof packet.nego_data;
+            has_rcv = 0;
+            while (to_rcv > 0) {
+                has_rcv += Cy_SCB_UART_GetArray(UART_SCB, ((char*)&packet.nego_data) + has_rcv, to_rcv);
+                to_rcv -= has_rcv;
+            }
+
+            uint32_t g = packet.nego_data.g;
+            uint32_t p = packet.nego_data.p;
+            for (int i = 0; i < 8; i++) {
+                uint32_t s = packet.nego_data.s[i];
+                // TODO: i got stuck on modpow
+            }
+        }
+    }
+}
+
+void uart_tx_timer_task(TimerHandle_t timer) {
+    xTaskNotifyGive(uart_tx_task_handle);
+}
+
+void uart_tx_task(void *arg) {
+	char buf;
+	for (;;) {
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+		buf = global_uart_host;
+		Cy_SCB_UART_PutArray(SCB1, &buf, 1);
+	}
+}
+
+char init_uart() {
+    cy_en_scb_uart_status_t uart_status = Cy_SCB_UART_Init(UART_SCB, &uart_cfg, 0);
+    if (uart_status != CY_SCB_UART_SUCCESS) {
+        LOG_ERR("UART block initialisation failed with %s (0x%08x)\n", get_scb_uart_status_name(uart_status), uart_status);
+        return 1;
+    }
+    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_RX, CY_GPIO_DM_HIGHZ, 0, 18);
+    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_TX, CY_GPIO_DM_STRONG_IN_OFF, 0, 18);
+    
+    // we dont want to accidentally use already used peripheral dividers
+    div_type = CY_SYSCLK_DIV_8_BIT;
+    for (int i = PERI_DIV_8_NR - 1; i >= 0; i--) {
+        if (Cy_SysClk_PeriphGetDividerEnabled(div_type, i)) continue;
+
+        div_num = i;
+    }
+
+    if (div_num == 255) {
+        // couldn't find 8-bit dividers, switch to 16-bit
+        LOG_WARN("Couldn't find any free 8-bit periclk dividers; searching for 16-bit dividers\n");
+        div_type = CY_SYSCLK_DIV_16_BIT;
+        for (int i = PERI_DIV_16_NR - 1; i >= 0; i--) {
+            if (Cy_SysClk_PeriphGetDividerEnabled(div_type, i)) continue;
+
+            div_num = i;
+        }
+        
+        if (div_num == 255) {
+            LOG_ERR("Couldn't find any free dividers\n");
+            return 2;
+        }
+    }
+
+    // NOTE: need to change if peripheral clock changes
+    cy_en_sysclk_status_t sysclk_status = Cy_SysClk_PeriphSetDivider(div_type, div_num, 71);
+    if (sysclk_status != CY_SYSCLK_SUCCESS) {
+        LOG_ERR("%s Peripheral divider %d initialisation failed with %s (%08x)\n", (div_type == CY_SYSCLK_DIV_8_BIT) ? "8-bit" : "16-bit", div_num, get_sysclk_status_name(sysclk_status), sysclk_status);
+        return 2;
+    }
+
+    sysclk_status = Cy_SysClk_PeriphEnableDivider(div_type, div_num);
+    if (sysclk_status != CY_SYSCLK_SUCCESS) {
+        LOG_ERR("Enabling %s peripheral divider %d failed with %s (%08x)\n", (div_type == CY_SYSCLK_DIV_8_BIT) ? "8-bit" : "16-bit", div_num, get_sysclk_status_name(sysclk_status), sysclk_status);
+        return 2;
+    }
+
+    sysclk_status = Cy_SysClk_PeriphAssignDivider(PCLK_SCB0_CLOCK + UART_SCB_NUM, div_type, div_num);
+    if (sysclk_status != CY_SYSCLK_SUCCESS) {
+        LOG_ERR("Assigning %s peripheral divider %d failed with %s (%08x)\n", (div_type == CY_SYSCLK_DIV_8_BIT) ? "8-bit" : "16-bit", div_num, get_sysclk_status_name(sysclk_status), sysclk_status);
+        return 2;
+    }
+
+    LOG_DEBUG("Successfully initialised clock for UART\n");
+
+    uart_tx_timer_handle = xTimerCreate("UART tx timer", pdMS_TO_TICKS(100), pdTRUE, 0, uart_tx_timer_task);
+    if (!uart_tx_timer_handle) {
+        LOG_ERR("Failed to create UART tx timer\n");
+        return 3;
+    } else {
+        LOG_DEBUG("Successfully created UART tx timer\n");
+    }
+
+    BaseType_t rtos_status = xTaskCreate(uart_tx_task, "UART tx task", configMINIMAL_STACK_SIZE * 4, 0, configMAX_PRIORITIES - 3, &uart_tx_task_handle);
+    if (rtos_status != pdPASS) {
+        LOG_ERR("Failed to create UART tx task\n");
+        return 3;
+    } else {
+        LOG_DEBUG("Successfully created UART tx task\n");
+    }
+
+    Cy_SCB_UART_Enable(UART_SCB);
+
+    for (int i = 0; i < 8; i++) {
+        my_secret[i] = i;
+    }
+
+    return 0;
+}
+
+const char *get_scb_uart_status_name(cy_en_scb_uart_status_t status) {
+    switch (status) {
+        CASE_RETURN_STR(CY_SCB_UART_SUCCESS)
+        CASE_RETURN_STR(CY_SCB_UART_BAD_PARAM)
+        CASE_RETURN_STR(CY_SCB_UART_RECEIVE_BUSY)
+        CASE_RETURN_STR(CY_SCB_UART_TRANSMIT_BUSY)
+    }
+    return "UNKNOWN_STATUS";
+}
+
+const char *get_sysclk_status_name(cy_en_sysclk_status_t status) {
+    switch (status) {
+        CASE_RETURN_STR(CY_SYSCLK_SUCCESS)
+        CASE_RETURN_STR(CY_SYSCLK_BAD_PARAM)
+        CASE_RETURN_STR(CY_SYSCLK_TIMEOUT)
+        CASE_RETURN_STR(CY_SYSCLK_INVALID_STATE)
+        CASE_RETURN_STR(CY_SYSCLK_UNSUPPORTED_STATE)
+    }
+
+    return "UNKNOWN_STATUS";
+}
+
+const char *get_uart_msg_type_name(uart_en_msg_type_t status) {
+    switch (status) {
+        CASE_RETURN_STR(UART_MSG_TYPE_NEGOTIATION)
+        CASE_RETURN_STR(UART_MSG_TYPE_KEEPALIVE)
+    }
+
+    return "UNKNOWN_MESSAGE";
+}
