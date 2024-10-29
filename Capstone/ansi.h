@@ -1,6 +1,8 @@
 #ifndef ANSI_H
 #define ANSI_H
 
+#include <stdio.h>
+
 // LOG LEVELS
 // Each log level implies the presence of messages from all log levels below it.
 //
@@ -12,7 +14,7 @@
 // 5: Even more info about what the code is doing
 
 
-#define LOGLEVEL 4
+#define LOGLEVEL 5
 
 #if (LOGLEVEL > 0)
 #define LOG_CLEARFMT() printf("\033[m")

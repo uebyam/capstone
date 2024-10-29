@@ -28,6 +28,7 @@
 #include "cy_em_eeprom.h"
 
 #include "ansi.h"
+#include "uart.h"
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
@@ -70,6 +71,12 @@ int main(void) {
     init_lpcomp(1);
     initEEPROM();
     init_rtc();
+
+    if (init_uart()) {
+        LOG_ERR("UART initialisation failed\n");
+    } else {
+        LOG_DEBUG("Initialised UART\n");
+    }
 
     uxTopUsedPriority = configMAX_PRIORITIES - 1;
     BaseType_t rtos_result;
