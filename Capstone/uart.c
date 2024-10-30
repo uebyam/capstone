@@ -24,53 +24,10 @@ bool global_uart_host = 0;
 const char *get_scb_uart_status_name(cy_en_scb_uart_status_t status);
 const char *get_sysclk_status_name(cy_en_sysclk_status_t status);
 
-TaskHandle_t uart_tx_task_handle;
-TaskHandle_t uart_rx_task_handle;
+TaskHandle_t uart_task_handle;
 // NOTE: FreeRTOS imers are susceptible to processor lag.
 // TODO: update to use better things than freertos timers
-TimerHandle_t uart_tx_timer_handle;
-
-enum uart_en_msg_type_e {
-    // diffie-hellman key exchange + encryption scheme negotiation data
-    UART_MSG_TYPE_NEGOTIATION = 0,  // have to spell it out for yall
-
-    // no telling
-    UART_MSG_TYPE_ENC = 1,
-
-    // keepalive
-    UART_MSG_TYPE_KEEPALIVE = 2,
-};
-typedef uint16_t uart_en_msg_type_t;
-
-typedef struct {
-    uint16_t p, g, s[8];
-} uart_nego_data_t;
-
-typedef struct {
-    uint8_t bytes[16];
-} uart_enc_data_t;
-
-typedef struct {
-    uint8_t fine;
-    uint8_t unused[13];
-} uart_keepalive_t;
-
-typedef struct {
-    uart_en_msg_type_t msg_type;
-    union {
-        uart_keepalive_t keepalive;
-    };
-} uart_msg_t; 
-
-typedef struct {
-    uart_en_msg_type_t msg_type;
-    union {
-        uart_nego_data_t nego_data;
-        uart_enc_data_t enc_data;
-    };
-} uart_packet_t;
-
-uint16_t my_secret[8] = {};
+TimerHandle_t uart_timer_handle;
 
 const cy_stc_scb_uart_config_t uart_cfg = {
     .uartMode = CY_SCB_UART_STANDARD,
@@ -89,11 +46,11 @@ const cy_stc_sysint_t uart_intr_cfg = {
 
 uint8_t div_num = 255, div_type;
 
-void uart_tx_timer_task(TimerHandle_t timer) {
-    xTaskNotifyGive(uart_tx_task_handle);
+void uart_timer_task(TimerHandle_t timer) {
+    xTaskNotifyGive(uart_task_handle);
 }
 
-void uart_tx_task(void *arg) {
+void uart_task(void *arg) {
     // TODO: diffie-hellman + aes
     char buf;
     char lonely_days = 0;
@@ -191,15 +148,15 @@ char init_uart() {
 
     LOG_DEBUG("Successfully initialised clock div %d for UART\n", div_type);
 
-    uart_tx_timer_handle = xTimerCreate("UART tx timer", pdMS_TO_TICKS(100), pdTRUE, 0, uart_tx_timer_task);
-    if (!uart_tx_timer_handle) {
+    uart_timer_handle = xTimerCreate("UART tx timer", pdMS_TO_TICKS(100), pdTRUE, 0, uart_timer_task);
+    if (!uart_timer_handle) {
         LOG_ERR("Failed to create UART tx timer\n");
         return 3;
     } else {
         LOG_DEBUG("Successfully created UART tx timer\n");
     }
 
-    BaseType_t rtos_status = xTaskCreate(uart_tx_task, "UART tx task", configMINIMAL_STACK_SIZE * 4, 0, configMAX_PRIORITIES - 3, &uart_tx_task_handle);
+    BaseType_t rtos_status = xTaskCreate(uart_task, "UART tx task", configMINIMAL_STACK_SIZE * 4, 0, configMAX_PRIORITIES - 3, &uart_task_handle);
     if (rtos_status != pdPASS) {
         LOG_ERR("Failed to create UART tx task\n");
         return 3;
@@ -209,11 +166,7 @@ char init_uart() {
 
     Cy_SCB_UART_Enable(UART_SCB);
 
-    for (int i = 0; i < 8; i++) {
-        my_secret[i] = i;
-    }
-
-    xTimerStart(uart_tx_timer_handle, 0);
+    xTimerStart(uart_timer_handle, 0);
 
     return 0;
 }
@@ -238,13 +191,4 @@ const char *get_sysclk_status_name(cy_en_sysclk_status_t status) {
     }
 
     return "UNKNOWN_STATUS";
-}
-
-const char *get_uart_msg_type_name(uart_en_msg_type_t status) {
-    switch (status) {
-        CASE_RETURN_STR(UART_MSG_TYPE_NEGOTIATION)
-        CASE_RETURN_STR(UART_MSG_TYPE_KEEPALIVE)
-    }
-
-    return "UNKNOWN_MESSAGE";
 }
