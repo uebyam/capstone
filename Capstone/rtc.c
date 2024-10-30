@@ -134,7 +134,7 @@ void handle_error(void)
 }
 
 // initialise rtc
-void init_rtc(void) {
+void init_rtc(bool ask) {
     cy_rslt_t rslt = cyhal_rtc_init(&rtc_obj);
     if (CY_RSLT_SUCCESS != rslt)
     {
@@ -142,7 +142,7 @@ void init_rtc(void) {
     }
     
     LOG_INFO("input in HH MM SS DD MM YY\n");
-    set_time(INPUT_TIMEOUT_MS);
+    set_time(ask ? INPUT_TIMEOUT_MS : 1000);
 }
 
 void read_rtc(struct tm *date_time){
@@ -183,231 +183,13 @@ void rtc(void)
     char date_string[STRING_BUFFER_SIZE];
     struct tm date_time;
 
-    init_rtc();
+    init_rtc(1);
     
     // to read and print
     for(;;) {
         read_rtc(&date_time);
         convert_rtc_to_str(&date_time, date_string);
         Cy_SysLib_Delay(1000);
-    }
-}
-
-/*******************************************************************************
-* Function Name: set_dst_feature
-********************************************************************************
-* Summary:
-*  This functions takes the user input ,sets the dst start/end date and time,
-*  and then enables the DST feature.
-*
-* Parameter:
-*  uint32_t timeout_ms : Maximum allowed time (in milliseconds) for the
-*  function
-*
-* Return:
-*  void
-*******************************************************************************/
-
-static void set_dst_feature(uint32_t timeout_ms)
-{
-    cy_rslt_t rslt;
-    uint8_t dst_cmd;
-    char dst_start_buffer[STRING_BUFFER_SIZE] = {0};
-    char dst_end_buffer[STRING_BUFFER_SIZE] = {0};
-    uint32_t space_count = 0;
-
-    /* Variables used to store DST start and end time information */
-    cyhal_rtc_dst_t dst_start_time, dst_end_time;
-
-    /* Variables used to store date and time information */
-    int mday = 0, month = 0, year = 0, sec = 0, min = 0, hour = 0;
-    uint8_t fmt = 0;
-    if (DST_ENABLED_FLAG == dst_data_flag)
-    {
-        if (cyhal_rtc_is_dst(&rtc_obj))
-        {
-            LOG_INFO("Current DST Status :: Active\r\n\n");
-        }
-        else
-        {
-            LOG_INFO("Current DST Status :: Inactive\r\n\n");
-        }
-    }
-    else
-    {
-        LOG_INFO("Current DST Status :: Disabled\r\n\n");
-    }
-
-    /* Display available commands */
-    LOG_INFO("Available DST commands \r\n");
-    LOG_INFO("1 : Enable DST feature\r\n");
-    LOG_INFO("2 : Disable DST feature\r\n");
-    LOG_INFO("3 : Quit DST Configuration\r\n\n");
-
-    rslt = cyhal_uart_getc(&cy_retarget_io_uart_obj, &dst_cmd, timeout_ms);
-
-    if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
-    {
-        if (RTC_CMD_ENABLE_DST == dst_cmd)
-        {
-            /* Get DST start time information */
-            LOG_INFO("Enter DST format \r\n");
-            LOG_INFO("1 : Fixed DST format\r\n");
-            LOG_INFO("2 : Relative DST format\r\n\n");
-
-            rslt = cyhal_uart_getc(&cy_retarget_io_uart_obj, &fmt, timeout_ms);
-            if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
-            {
-            LOG_INFO("Enter DST start time in \"HH MM SS dd mm yyyy\" format\r\n");
-                rslt = fetch_time_data(dst_start_buffer, timeout_ms,
-                                                        &space_count);
-                if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
-                {
-                    if (space_count != MIN_SPACE_KEY_COUNT)
-                    {
-                        LOG_INFO("Invalid values! Please enter "
-                        "the values in specified format\r\n");
-                    }
-                    else
-                    {
-                        sscanf(dst_start_buffer, "%d %d %d %d %d %d",
-                               &hour, &min, &sec,
-                               &mday, &month, &year);
-
-                    if((validate_date_time(sec, min, hour, mday, month, year))&&
-                    ((fmt == FIXED_DST_FORMAT) || (fmt == RELATIVE_DST_FORMAT)))
-                    {
-                        dst_start_time.format =
-                        (fmt == FIXED_DST_FORMAT) ? CYHAL_RTC_DST_FIXED :
-                                                        CYHAL_RTC_DST_RELATIVE;
-                        dst_start_time.hour = hour;
-                        dst_start_time.month = month;
-                        dst_start_time.dayOfWeek =
-                        (fmt == FIXED_DST_FORMAT) ? 1 :
-                                            get_day_of_week(mday, month, year);
-                        dst_start_time.dayOfMonth =
-                        (fmt == FIXED_DST_FORMAT) ? mday : 1;
-                        dst_start_time.weekOfMonth =
-                        (fmt == FIXED_DST_FORMAT) ? 1 :
-                                        get_week_of_month(mday, month, year);
-                        /* Update flag value to indicate that a
-                            valid DST start time information has been received*/
-                        dst_data_flag = DST_VALID_START_TIME_FLAG;
-                    }
-                    else
-                    {
-                        LOG_INFO("Invalid values! Please enter the values"
-                                   " in specified format\r\n");
-                    }
-                    }
-                }
-                else
-                {
-                    LOG_INFO("Timeout \r\n");
-                }
-
-                if (DST_VALID_START_TIME_FLAG == dst_data_flag)
-                {
-                    /* Get DST end time information,
-                    iff a valid DST start time information is received */
-                    LOG_INFO("Enter DST end time "
-                    " in \"HH MM SS dd mm yyyy\" format\r\n");
-                    rslt = fetch_time_data(dst_end_buffer, timeout_ms,
-                                            &space_count);
-                    if (rslt != CY_RSLT_ERR_CSP_UART_GETC_TIMEOUT)
-                    {
-                        if (space_count != MIN_SPACE_KEY_COUNT)
-                        {
-                            LOG_INFO("Invalid values! Please"
-                            "enter the values in specified format\r\n");
-                        }
-                        else
-                        {
-                            sscanf(dst_end_buffer, "%d %d %d %d %d %d",
-                                   &hour, &min, &sec,
-                                   &mday, &month, &year);
-
-                            if((validate_date_time(sec,min,hour,mday,month,year))&&
-                                ((fmt == FIXED_DST_FORMAT) ||
-                                (fmt == RELATIVE_DST_FORMAT)))
-                            {
-                                dst_end_time.format = (fmt == FIXED_DST_FORMAT)?
-                                 CYHAL_RTC_DST_FIXED : CYHAL_RTC_DST_RELATIVE;
-                                dst_end_time.hour = hour;
-                                dst_end_time.month = month;
-                                dst_end_time.dayOfWeek =
-                                (fmt == FIXED_DST_FORMAT) ? 1 :
-                                get_day_of_week(mday, month, year);
-                                dst_end_time.dayOfMonth =
-                                (fmt == FIXED_DST_FORMAT) ? mday : 1;
-                                dst_end_time.weekOfMonth =
-                                (fmt == FIXED_DST_FORMAT) ? 1 :
-                                get_week_of_month(mday, month, year);
-                                /* Update flag value to indicate that a valid
-                                 DST end time information has been recieved*/
-                                dst_data_flag = DST_VALID_END_TIME_FLAG;
-                            }
-                            else
-                            {
-                                LOG_INFO("Invalid values! Please enter the "
-                                       " values in specified format\r\n");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        LOG_INFO("Timeout \r\n");
-                    }
-                }
-
-                if (DST_VALID_END_TIME_FLAG == dst_data_flag)
-                {
-                    rslt = cyhal_rtc_set_dst(&rtc_obj, &dst_start_time,
-                                                        &dst_end_time);
-                    if (CY_RSLT_SUCCESS == rslt)
-                    {
-                        dst_data_flag = DST_ENABLED_FLAG;
-                        LOG_INFO("DST time updated\r\n\n");
-                    }
-                    else
-                    {
-                        handle_error();
-                    }
-                }
-            }
-            else
-            {
-                LOG_INFO("Timeout \r\n");
-            }
-        }
-        else if (RTC_CMD_DISABLE_DST == dst_cmd)
-        {
-            dst_end_time.format = CYHAL_RTC_DST_FIXED;
-            dst_end_time.hour = 0;
-            dst_end_time.month = 1;
-            dst_end_time.dayOfWeek = 1;
-            dst_end_time.dayOfMonth = 1;
-            dst_end_time.weekOfMonth = 1;
-            dst_start_time = dst_end_time;
-            rslt = cyhal_rtc_set_dst(&rtc_obj, &dst_start_time, &dst_end_time);
-            if (CY_RSLT_SUCCESS == rslt)
-            {
-                dst_data_flag = DST_DISABLED_FLAG;
-                LOG_INFO("DST feature disabled\r\n\n");
-            }
-            else
-            {
-                handle_error();
-            }
-        }
-        else if (RTC_CMD_QUIT_CONFIG_DST == dst_cmd)
-        {
-            LOG_INFO("Exit from DST Configuration \r\n\n");
-        }
-    }
-    else
-    {
-        LOG_INFO("Timeout \r\n");
     }
 }
 
