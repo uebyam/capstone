@@ -14,7 +14,7 @@ const char *get_wiced_result_name(wiced_result_t result);
 const char *get_gatt_opcode_name(wiced_bt_gatt_opcode_t opcode);
 const char *get_gatt_optype_name(wiced_bt_gatt_optype_t optype);
 
-void print_bd_address(char * msg, wiced_bt_device_address_t bdaddr);
+void print_bd_address(const char * msg, wiced_bt_device_address_t bdaddr);
 void print_local_bd_address(void);
 
 #endif

@@ -2,6 +2,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
 #endif
+#include <string>
+#include <iostream>
 #include "wiced_bt_gatt.h"
 #include "cybsp.h"
 #include "cy_retarget_io.h"

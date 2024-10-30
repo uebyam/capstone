@@ -11,7 +11,7 @@
 /*******************************************************************************
  * Function Prototypes
  ******************************************************************************/
-void handle_eeprom_result(uint32_t status, char *message);
+void handle_eeprom_result(uint32_t status, const char *message);
 
 /*******************************************************************************
  * Global variables
@@ -20,9 +20,9 @@ void handle_eeprom_result(uint32_t status, char *message);
 cy_stc_eeprom_config_t Em_EEPROM_config =
 {
         .eepromSize = EEPROM_SIZE,
-        .blockingWrite = BLOCKING_WRITE,
-        .redundantCopy = REDUNDANT_COPY,
         .wearLevelingFactor = WEAR_LEVELLING_FACTOR,
+        .redundantCopy = REDUNDANT_COPY,
+        .blockingWrite = BLOCKING_WRITE,
 };
 
 cy_stc_eeprom_context_t Em_EEPROM_context;
@@ -183,7 +183,7 @@ void getTimestamps(int *timestamps) {
 * Note: If error occurs interrupts are disabled.
 *
 *******************************************************************************/
-void handle_eeprom_result(uint32_t status, char *message)
+void handle_eeprom_result(uint32_t status, const char *message)
 {
 
     if(CY_EM_EEPROM_SUCCESS != status)

@@ -33,10 +33,9 @@ const cy_stc_scb_uart_config_t uart_cfg = {
     .uartMode = CY_SCB_UART_STANDARD,
     .oversample = 12,        // NOTE: Need to change if peripheral clock changes
     .dataWidth = 8,
-    .parity = CY_SCB_UART_PARITY_NONE,
     .stopBits = CY_SCB_UART_STOP_BITS_1,
+    .parity = CY_SCB_UART_PARITY_NONE,
     .breakWidth = 11,
-    .enableMsbFirst = 0
 };
 
 const cy_stc_sysint_t uart_intr_cfg = {
@@ -44,7 +43,8 @@ const cy_stc_sysint_t uart_intr_cfg = {
     .intrPriority = 7
 };
 
-uint8_t div_num = 255, div_type;
+uint8_t div_num = 255;
+cy_en_divider_types_t div_type;
 
 void uart_timer_task(TimerHandle_t timer) {
     xTaskNotifyGive(uart_task_handle);
@@ -100,8 +100,8 @@ char init_uart() {
         LOG_ERR("UART block initialisation failed with %s (0x%08x)\n", get_scb_uart_status_name(uart_status), uart_status);
         return 1;
     }
-    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_RX, CY_GPIO_DM_HIGHZ, 0, 18);
-    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_TX, CY_GPIO_DM_STRONG_IN_OFF, 0, 18);
+    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_RX, CY_GPIO_DM_HIGHZ, 0, HSIOM_SEL_ACT_6);
+    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_TX, CY_GPIO_DM_STRONG_IN_OFF, 0, HSIOM_SEL_ACT_6);
     
     // we dont want to accidentally use already used peripheral dividers
     div_type = CY_SYSCLK_DIV_8_BIT;
@@ -140,7 +140,7 @@ char init_uart() {
         return 2;
     }
 
-    sysclk_status = Cy_SysClk_PeriphAssignDivider(PCLK_SCB0_CLOCK + UART_SCB_NUM, div_type, div_num);
+    sysclk_status = Cy_SysClk_PeriphAssignDivider((en_clk_dst_t)(PCLK_SCB0_CLOCK + UART_SCB_NUM), div_type, div_num);
     if (sysclk_status != CY_SYSCLK_SUCCESS) {
         LOG_ERR("Assigning %s peripheral divider %d failed with %s (%08x)\n", (div_type == CY_SYSCLK_DIV_8_BIT) ? "8-bit" : "16-bit", div_num, get_sysclk_status_name(sysclk_status), sysclk_status);
         return 2;

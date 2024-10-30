@@ -132,7 +132,7 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
         LOG_DEBUG("GATT event %s (%d)\n", get_gatt_event_name(event), event);
         wiced_bt_gatt_buffer_request_t *p_buf_req = &p_event_data->buffer_request;
         LOG_DEBUG("len_req %d\n", p_buf_req->len_requested);
-        p_buf_req->buffer.p_app_rsp_buffer = app_alloc_buffer(p_buf_req->len_requested);
+        p_buf_req->buffer.p_app_rsp_buffer = (uint8_t*)app_alloc_buffer(p_buf_req->len_requested);
         p_buf_req->buffer.p_app_ctxt = (void *)app_free_buffer;
         gatt_status = WICED_BT_GATT_SUCCESS;
     }
@@ -429,7 +429,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
                                 uint16_t *p_error_handle)
 {
     uint16_t    attr_handle = p_read_req->s_handle;
-    uint8_t     *p_rsp = app_alloc_buffer(len_requested);
+    uint8_t     *p_rsp = (uint8_t*) app_alloc_buffer(len_requested);
     uint8_t     pair_len = 0;
     int         index = 0;
     int         used = 0;
