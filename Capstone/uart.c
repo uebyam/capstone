@@ -52,11 +52,13 @@ void uart_timer_task(TimerHandle_t timer) {
     xTaskNotifyGive(uart_task_handle);
 }
 
-char uart_next_msg = 0;
+char uart_next_msg = UART_MSG_CONN_KEEPALIVE;
 
 const uint16_t UART_CONN_SLOW_TICKS = pdMS_TO_TICKS(100);
 const uint16_t UART_CONN_ACTIVE_TICKS = pdMS_TO_TICKS(5);
 const uint16_t UART_CONN_DESYNC_TICKS = pdMS_TO_TICKS(43);
+
+void handle_uart_msg(uint32_t cmd, uint8_t* buf, uint16_t* errvar);
 
 void uart_task(void *arg) {
     // TODO: diffie-hellman + aes
@@ -68,8 +70,8 @@ void uart_task(void *arg) {
         // Advertisement loop
         bool expecting_AB = false;
         for (;;) {
-            if (Cy_SCB_UART_GetNumInRxFifo(SCB1)) {
-                Cy_SCB_UART_ClearRxFifo(SCB1);
+            if (Cy_SCB_UART_GetNumInRxFifo(UART_SCB)) {
+                Cy_SCB_UART_ClearRxFifo(UART_SCB);
             }
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
@@ -104,6 +106,7 @@ void uart_task(void *arg) {
 
             if (fail) {
                 LOG_WARN("Failed to receive expected ADV ACK byte; possible feedback?\n");
+                Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
                 xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
                 xTimerReset(uart_timer_handle, 0);
                 ulTaskNotifyTake(pdTRUE, 1);
@@ -149,6 +152,7 @@ void uart_task(void *arg) {
             xTimerReset(uart_timer_handle, 0);
             ulTaskNotifyTake(pdTRUE, 1);
             LOG_WARN("Resetting UART connection state; too many failed auth attempts\n");
+            Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
             continue;
         }
 
@@ -211,6 +215,7 @@ void uart_task(void *arg) {
 
         if (fail) {
             LOG_WARN("DH failed, resetting\n");
+            Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
             cyhal_trng_free(&trng);
             xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
             xTimerReset(uart_timer_handle, 0);
@@ -304,6 +309,7 @@ void uart_task(void *arg) {
 
             if (failed) {
                 LOG_WARN("AES key check failed, check connection; resetting\n");
+                Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
                 Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                 Cy_Crypto_Core_Disable(CRYPTO);
                 Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
@@ -322,6 +328,7 @@ void uart_task(void *arg) {
             }
             if (lonely_days > UART_CONN_FAILURE_THRESHOLD) {
                 LOG_WARN("More than %d communication failures; resetting\n", UART_CONN_FAILURE_THRESHOLD);
+                Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
                 Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                 Cy_Crypto_Core_Disable(CRYPTO);
                 Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
@@ -329,7 +336,7 @@ void uart_task(void *arg) {
             }
 
             int num_in_rx_buf = Cy_SCB_UART_GetNumInRxFifo(UART_SCB);
-            if (num_in_rx_buf == 0 && !lonely_days) {
+            if (num_in_rx_buf == 0 && lonely_days < 2) {
                 ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
             } else if (num_in_rx_buf < 16) {
                 xTimerChangePeriod(uart_timer_handle, UART_CONN_DESYNC_TICKS, 0);
@@ -345,10 +352,7 @@ void uart_task(void *arg) {
 
             if (!num_in_rx_buf) {
                 char next_msg = uart_next_msg;
-                switch (next_msg) {
-                    case 0: memcpy(plainbuf, msg_keepalive, 16); break;
-                    default: memcpy(plainbuf, msg_unknown, 16); break;
-                }
+                plainbuf[0] = next_msg;
 
                 // last 2 bytes are our id
                 ((uint16_t*)plainbuf)[7] = our_id;
@@ -357,29 +361,59 @@ void uart_task(void *arg) {
                 Cy_Crypto_Core_Aes_Cbc(CRYPTO, CY_CRYPTO_ENCRYPT, 16, ivbuf, encbuf, plainbuf, &aes_state);
 
                 memcpy(our_last_block, encbuf, 16);
-                Cy_SCB_UART_PutArray(SCB1, encbuf, 16);
+                Cy_SCB_UART_Put(UART_SCB, UART_MSG_APP);
+                Cy_SCB_UART_PutArray(UART_SCB, encbuf, 16);
             }
 
             // Receive encrypted block into `encbuf'
             int rcv_bytes = 0;
+            uint32_t cmd = 0xFFFFFFFF;
             if (Cy_SCB_UART_GetNumInRxFifo(UART_SCB)) {
                 xTimerChangePeriod(uart_timer_handle, UART_CONN_ACTIVE_TICKS, 0);
                 xTimerReset(uart_timer_handle, 0);
                 ulTaskNotifyTake(pdTRUE, 1);
+                cmd = Cy_SCB_UART_Get(UART_SCB);
 
-                for (int j = 0; j < 5; j++) {
-                    rcv_bytes += Cy_SCB_UART_GetArray(UART_SCB, &encbuf[rcv_bytes], 16 - rcv_bytes);
-                    if (rcv_bytes >= 16) break;
-                    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+                if (cmd == 0xFFFFFFFF) {
+                    LOG_WARN("Reported elements in rx buffer, but get failed\n");
+                    lonely_days++;
+                    continue;
+                }
+
+                if (cmd == UART_MSG_APP) {
+                    for (int j = 0; j < 5; j++) {
+                        rcv_bytes += Cy_SCB_UART_GetArray(UART_SCB, &encbuf[rcv_bytes], 16 - rcv_bytes);
+                        if (rcv_bytes >= 16) break;
+                        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+                    }
+
+                    // Failed
+                    if (rcv_bytes < 16) {
+                        lonely_days += lonely_days + 1;
+                        continue;
+                    }
+
+
+                } else if (cmd == UART_MSG_RESET || cmd == UART_MSG_ADV) {
+                    // reset
+                    LOG_WARN("External reset requested; resetting\n");
+                    xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
+                    xTimerReset(uart_timer_handle, 0);
+                    ulTaskNotifyTake(pdTRUE, 1);
+                    Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
+                    Cy_Crypto_Core_Disable(CRYPTO);
+                    Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
+                    break;
+                } else {
+                    LOG_WARN("Unknown command %02x\n", cmd);
+                    
                 }
 
                 xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
                 xTimerReset(uart_timer_handle, 0);
                 ulTaskNotifyTake(pdTRUE, 1);
-            }
-
-            // Failed
-            if (rcv_bytes < 16) {
+            } else {
+                // No data; count event and continue
                 lonely_days += lonely_days + 1;
                 continue;
             }
@@ -389,7 +423,7 @@ void uart_task(void *arg) {
             for (j = 0; j < 16; j++) if (encbuf[j] != our_last_block[j]) break;
             if (j == 16) {
                 LOG_WARN("Received message same as sent message; possible feedback\n");
-                // feedback is heresy so it counts as 5 lonely days
+                // feedback is banned so it counts as 5 lonely days
                 lonely_days += 5;
                 continue;
             }
@@ -397,7 +431,7 @@ void uart_task(void *arg) {
             memcpy(ivbuf, their_last_block, 16);
             memcpy(their_last_block, encbuf, 16);
 
-            // Check sent message (now in srcbuf)
+            // Check received message (now in plainbuf)
             Cy_Crypto_Core_Aes_Cbc(CRYPTO, CY_CRYPTO_DECRYPT, 16, ivbuf, plainbuf, encbuf, &aes_state);
             // Last 2 bytes are ID
             if (((uint16_t*)plainbuf)[7] != their_id) {
@@ -413,24 +447,8 @@ void uart_task(void *arg) {
                     LOG_WARN_NOFMT("\n");
                 }
             }
-            for (j = 0; j < 16; j++) if (plainbuf[j] != msg_keepalive[j]) break;
-            if (j >= 14) {
-                lonely_days = 0;
-                // keepalive received
-                continue;
-            }
 
-            for (j = 0; j < 16; j++) if (plainbuf[j] != msg_unknown[j]) break;
-            if (j >= 14) {
-                LOG_INFO("Unknown received\n");
-                lonely_days = 0;
-                // 'unknown' received
-                continue;
-            }
-
-            // unknown message
-            LOG_WARN("Unknown message received\n");
-            lonely_days++;
+            handle_uart_msg(cmd, plainbuf, &lonely_days);
         }
     }
 }
@@ -532,4 +550,31 @@ const char *get_sysclk_status_name(cy_en_sysclk_status_t status) {
     }
 
     return "UNKNOWN_STATUS";
+}
+
+
+
+void handle_uart_msg(uint32_t cmd, uint8_t* buf, uint16_t* errvar) {
+    if (cmd == 0xFFFFFFFF) return 1;
+
+    switch (buf[0]) {
+        case UART_MSG_CONN_KEEPALIVE:
+            // Normal keepalive
+            *errvar = 0;
+            break;
+        case UART_MSG_CONN_VOLTMETER:
+            // Voltmeter reading
+            float32_t volts;
+            for (int i = 0; i < 4; i++) {
+                ((uint8_t*)&volts)[i] = buf[i + 1];
+            }
+            LOG_INFO("Voltmeter reading from BMS: %f\n", volts);
+            *errvar = 0;
+            break;
+
+        default:
+            LOG_WARN("Unknown message sent, counting as failure\n");
+            (*errvar)++;
+            break;
+    }
 }

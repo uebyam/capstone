@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
-
 #define UART_SCB_NUM 1
 #define UART_SCB SCB1
 
@@ -12,11 +11,6 @@
 #define UART_PRT (10)
 #define UART_RX (0)
 #define UART_TX (1)
-
-char init_uart(void);
-
-extern bool global_uart_enabled;
-extern bool global_uart_host;
 
 enum {
     UART_MSG_ADV = 0xAA,    // Client broadcasts ADV periodically. Upon receiving an ADV, send back ACK.

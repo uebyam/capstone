@@ -10,12 +10,30 @@
 
 #include "dh.h"
 #include "ansi.h"
+#include "uart.h"
 
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
 void init_uart_on_scb1();
+
+bool rangeIntr = false;
+int16_t lastCode = 0;
+
+void range_isr() {
+    uint32_t intr = Cy_SAR_GetInterruptStatusMasked(SAR);
+    Cy_SAR_ClearInterrupt(SAR, intr);
+    
+    intr = Cy_SAR_GetRangeInterruptStatusMasked(SAR);
+    if (intr) {
+        Cy_SAR_ClearRangeInterrupt(SAR, intr);
+        rangeIntr = true;
+        lastCode = Cy_SAR_GetResult16(SAR, 0);
+    }
+    NVIC_ClearPendingIRQ(pass_0_sar_0_IRQ);
+    
+}
 
 int main() {
     cybsp_init();
@@ -34,6 +52,26 @@ int main() {
 
     init_uart_on_scb1();
     Cy_GPIO_Pin_FastInit(GPIO_PRT13, 7, CY_GPIO_DM_STRONG_IN_OFF, 1, P13_7_GPIO);
+
+    init_cycfg_pins();
+	init_cycfg_clocks();
+	init_cycfg_peripherals();
+    Cy_SysAnalog_Init(&pass_0_aref_0_config);
+    Cy_SysAnalog_Enable();
+
+    cy_stc_sysint_t sar_intr_cfg = {
+        .intrSrc = pass_0_sar_0_IRQ,
+        .intrPriority = 7,
+    };
+    Cy_SysInt_Init(&sar_intr_cfg, range_isr);
+    NVIC_EnableIRQ(pass_0_sar_0_IRQ);
+
+    cy_en_sar_status_t status;
+    status = Cy_SAR_Init(SAR, &pass_0_sar_0_config);
+    if (CY_SAR_SUCCESS == status) {
+        Cy_SAR_Enable(SAR);
+        Cy_SAR_StartConvert(SAR, CY_SAR_START_CONVERT_CONTINUOUS);
+    } // adc
 
     LOG_INFO("UART initialised, waiting for user button or other PSoC to send message\n");
 
@@ -234,8 +272,6 @@ int main() {
 
         // Encrypted message chain starts with "verification"
         const uint8_t msg_yea[16] = "verification";
-        const uint8_t msg_keepalive[16] = "keepalive";
-        const uint8_t msg_unknown[16] = "unknown";
         uint8_t* our_last_block = (uint8_t*)our_pub;
         uint8_t* their_last_block = (uint8_t*)their_pub;
         uint8_t srcbuf[16] = {};
@@ -342,12 +378,24 @@ int main() {
 
 
             if (!num_in_rx_buf) {
-                char next_msg = Cy_SCB_UART_GetNumInRxFifo(SCB5);
-                if (next_msg) Cy_SCB_UART_ClearRxFifo(SCB5);
+                char next_msg = rangeIntr ? UART_MSG_CONN_VOLTMETER : UART_MSG_CONN_KEEPALIVE;
+                rangeIntr = false;
 
+                srcbuf[0] = next_msg;
                 switch (next_msg) {
-                    case 0: memcpy(srcbuf, msg_keepalive, 14); break;
-                    default: memcpy(srcbuf, msg_unknown, 14); break;
+                    case UART_MSG_CONN_UNKNOWN:
+                        break;
+                    case UART_MSG_CONN_KEEPALIVE:
+                        break;
+                    case UART_MSG_CONN_VOLTMETER:
+                        {
+                            int16_t code = lastCode;
+                            float32_t val = Cy_SAR_CountsTo_Volts(SAR, 0, code);
+                            for (int i = 0; i < 4; i++) {
+                                srcbuf[i + 1] = ((uint8_t*)&val)[i];
+                            }
+                        }
+                        break;
                 }
 
                 // last 2 bytes are our id
@@ -359,8 +407,9 @@ int main() {
                 
                 memcpy(our_last_block, sendbuf, 16);
 
-                LOG_INFO("Sending %s with id (%u) as last 2 bytes\n", srcbuf, our_id);
+                LOG_INFO("Sending %02x with id (%u) as last 2 bytes\n", srcbuf[0], our_id);
 
+                Cy_SCB_UART_Put(UART_SCB, UART_MSG_APP);
                 Cy_SCB_UART_PutArray(SCB1, sendbuf, 16);
 
                 // Cache sent block into iv for later
@@ -370,17 +419,41 @@ int main() {
             // Receive encrypted block into `sendbuf'
             int rcv_bytes = 0;
             if (Cy_SCB_UART_GetNumInRxFifo(SCB1)) {
-                for (int j = 0; j < 5; j++) {
-                    rcv_bytes += Cy_SCB_UART_GetArray(SCB1, &sendbuf[rcv_bytes], 16 - rcv_bytes);
-                    if (rcv_bytes >= 16) break;
-                    Cy_SysLib_Delay(5);
+                uint32_t msg = Cy_SCB_UART_Get(UART_SCB);
+                if (msg == 0xFFFFFFFF) {
+                    LOG_WARN("Reported elements in rx buffer, but get failed\n");
+                    lonely_days++;
+                    continue;
                 }
-            }
 
-            // Failed
-            if (rcv_bytes < 16) {
-                LOG_WARN("Less than 16 bytes received in encrypted comms (%d)\n", rcv_bytes);
-                lonely_days++;
+                if (msg == UART_MSG_APP) {
+                    for (int j = 0; j < 5; j++) {
+                        rcv_bytes += Cy_SCB_UART_GetArray(UART_SCB, &sendbuf[rcv_bytes], 16 - rcv_bytes);
+                        if (rcv_bytes >= 16) break;
+                        Cy_SysLib_Delay(5);
+                    }
+
+                    // Failed
+                    if (rcv_bytes < 16) {
+                        LOG_WARN("Less than 16 bytes received in encrypted comms (%d)\n", rcv_bytes);
+                        lonely_days += lonely_days + 1;
+                        continue;
+                    }
+
+
+                } else if (msg == UART_MSG_RESET || msg == UART_MSG_ADV) {
+                    // reset
+                    LOG_WARN("External reset requested; resetting\n");
+                    Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
+                    Cy_Crypto_Core_Disable(CRYPTO);
+                    Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
+                    break;
+                } else {
+                    LOG_WARN("Unknown command %02x\n", msg);
+                }
+            } else {
+                LOG_WARN("No bytes received\n");
+                lonely_days += lonely_days + 1;
                 continue;
             }
 
@@ -414,28 +487,16 @@ int main() {
                     LOG_ERR_NOFMT("\n");
                 }
             }
-            for (j = 0; j < 14; j++) if (srcbuf[j] != msg_keepalive[j]) break;
-            if (j >= 14) {
-                LOG_DEBUG("Receive: %s\n", srcbuf);
-                lonely_days = 0;
-                // keepalive received
-                continue;
-            }
+            LOG_DEBUG("Received %02x\n", srcbuf[0]);
 
-            for (j = 0; j < 14; j++) if (srcbuf[j] != msg_unknown[j]) break;
-            if (j >= 14) {
-                LOG_ERR("Receive: %s\n", srcbuf);
-                lonely_days = 0;
-                // 'unknown' received
-                continue;
+            switch (srcbuf[0]) {
+                case UART_MSG_CONN_KEEPALIVE:
+                    lonely_days = 0;
+                    break;
+                case UART_MSG_CONN_UNKNOWN:
+                    lonely_days++;
+                    break;
             }
-
-            // unknown message
-            LOG_WARN("Unknown message received:");
-            for (int j = 0; j < 16; j++) { LOG_WARN_NOFMT(" %02x", srcbuf[j]); }
-            LOG_WARN_NOFMT("\n");
-            LOG_WARN("%s\n", srcbuf);
-            lonely_days++;
         }
     }
 
