@@ -268,7 +268,7 @@ int main() {
 
                 // Receive encrypted block into `sendbuf'
                 int rcv_bytes = 0;
-                for (int j = 0; j < 5; j++) {
+                for (int j = 0; j < 20; j++) {
                     rcv_bytes += Cy_SCB_UART_GetArray(SCB1, ((uint8_t*)&tmp_id) + rcv_bytes, 2 - rcv_bytes);
                     if (rcv_bytes >= 2) break;
                     Cy_SysLib_Delay(5);
@@ -445,7 +445,7 @@ int main() {
 void init_uart_on_scb1() {
     cy_stc_scb_uart_config_t uart_cfg = {
         .uartMode = CY_SCB_UART_STANDARD,
-        .oversample = 12,
+        .oversample = 8,
         .dataWidth = 8,
         .parity = CY_SCB_UART_PARITY_NONE,
         .stopBits = CY_SCB_UART_STOP_BITS_1,
@@ -457,7 +457,7 @@ void init_uart_on_scb1() {
     Cy_GPIO_Pin_FastInit(GPIO_PRT10, 0, CY_GPIO_DM_HIGHZ, 1, P10_0_SCB1_UART_RX);
     Cy_GPIO_Pin_FastInit(GPIO_PRT10, 1, CY_GPIO_DM_STRONG_IN_OFF, 1, P10_1_SCB1_UART_TX);
     Cy_SysClk_PeriphAssignDivider(PCLK_SCB1_CLOCK, CY_SYSCLK_DIV_8_BIT, 2);
-    Cy_SysClk_PeriphSetDivider(CY_SYSCLK_DIV_8_BIT, 2, 71);
+    Cy_SysClk_PeriphSetDivider(CY_SYSCLK_DIV_8_BIT, 2, 54);
     Cy_SysClk_PeriphEnableDivider(CY_SYSCLK_DIV_8_BIT, 2);
 
     Cy_SCB_UART_Enable(SCB1);

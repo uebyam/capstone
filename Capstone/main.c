@@ -65,6 +65,13 @@ int main(void) {
     CY_ASSERT(CY_RSLT_SUCCESS == cybsp_init());
     __enable_irq();
 
+    Cy_SysClk_PllDisable(1);
+    Cy_SysClk_FllDisable();
+    Cy_SysClk_FllConfigure(8000000, 50000000, CY_SYSCLK_FLLPLL_OUTPUT_OUTPUT);
+    Cy_SysClk_FllEnable(1000);
+    Cy_SysPm_SwitchToSimoBuck();
+    SystemCoreClockUpdate();
+
     cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, CY_RETARGET_IO_BAUDRATE);
 
     init_userbutton();
