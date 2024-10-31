@@ -56,14 +56,9 @@ void userbutton_isr() {
     Cy_GPIO_ClearInterrupt(GPIO_PRT0, 4);
     NVIC_ClearPendingIRQ(ioss_interrupts_gpio_0_IRQn);
 
-    if (times_pressed == 0) {
-        times_pressed++;
-        global_uart_host = 1;
-    } else {
-        BaseType_t higherPriorityTaskWoken = pdFALSE;
-        vTaskNotifyGiveFromISR(userbutton_task_handle, &higherPriorityTaskWoken);
-        portYIELD_FROM_ISR(higherPriorityTaskWoken);
-    }
+    BaseType_t higherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(userbutton_task_handle, &higherPriorityTaskWoken);
+    portYIELD_FROM_ISR(higherPriorityTaskWoken);
 }
 
 void userbutton_task(void *refcon) {

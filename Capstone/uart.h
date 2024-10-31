@@ -16,7 +16,6 @@
 char init_uart(void);
 
 extern bool global_uart_enabled;
-extern bool global_uart_host;
 
 enum {
     UART_MSG_ADV = 0xAA,    // Client broadcasts ADV periodically. Upon receiving an ADV, send back ACK.
