@@ -58,29 +58,15 @@ void uart_task(void *arg) {
 
     while (1) {
         // Advertisement loop
-        char slave = 0;
+        bool expecting_AB = false;
         for (;;) {
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
             if (Cy_SCB_UART_GetNumInRxFifo(UART_SCB)) {
                 uint32_t cmd = Cy_SCB_UART_Get(UART_SCB);
-                if (cmd == 0xAA) {
-                    // Return acknowledgement
-                    if (!Cy_SCB_UART_Put(UART_SCB, 0xAB)) {
-                        LOG_WARN("Failed to send ack message!\n");
-                    } else {
-                        LOG_DEBUG("Sent ack to adv\n");
-                        slave = 1;
-                        break;
-                    }
-                } else if (cmd == 0xAB) {
-                    LOG_DEBUG("Received ack to adv\n");
-
-                    if (!Cy_SCB_UART_Put(UART_SCB, 0xAC)) {
-                        LOG_WARN("Failed to send ack message!\n");
-                    } else {
-                        LOG_DEBUG("Sent ack to ack\n");
-                        slave = 0;
+                if (cmd == 0xAA || cmd == 0xAB) {
+                    if (Cy_SCB_UART_Put(UART_SCB, 0xAB)) {
+                        expecting_AB = cmd == 0xAA;
                         break;
                     }
                 }
@@ -88,28 +74,25 @@ void uart_task(void *arg) {
 
             if (!Cy_SCB_UART_Put(UART_SCB, 0xAA)) {
                 LOG_WARN("Failed to send adv message!\n");
-            } else {
-                LOG_DEBUG("Sent adv message\n");
             }
         }
 
         xTimerChangePeriod(uart_timer_handle, pdMS_TO_TICKS(5), 0);
         xTimerReset(uart_timer_handle, 0);
         ulTaskNotifyTake(pdTRUE, 1);
-        if (slave) {
-            // Discard ack adv byte
-            char fail = 1;
+        if (expecting_AB) {
+            // Discard AB byte
+            bool fail = false;
             for (int i = 0; i < 20; i++) {
                 ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-                if (Cy_SCB_UART_Get(UART_SCB) == 0xAC) {
-                    fail = 0;
+                if (Cy_SCB_UART_Get(UART_SCB) == 0xAB) {
+                    fail = false;
                     break;
                 }
             }
 
-            // If no ack byte sent, maybe the PSoC who sent the ack adv is dead
-            // Reset connection state
             if (fail) {
+                LOG_WARN("Failed to receive expected ADV ACK byte; possible feedback?\n");
                 xTimerChangePeriod(uart_timer_handle, pdMS_TO_TICKS(100), 0);
                 xTimerReset(uart_timer_handle, 0);
                 ulTaskNotifyTake(pdTRUE, 1);
@@ -117,34 +100,31 @@ void uart_task(void *arg) {
             }
         }
 
-        // Negotiation loop
+        LOG_DEBUG("Received UART signals from potential BMS, performing TRNG check\n");
+
+        // TRNG check loop
         char failures = 0;
         cyhal_trng_init(&trng);
         while (failures < 5) {
-            uint32_t randval = cyhal_trng_generate(&trng);
-            LOG_DEBUG("Random value: %lu %08lx\n", randval, randval);
-            Cy_SCB_UART_PutArray(UART_SCB, &randval, 4);
+            uint32_t rand_val = cyhal_trng_generate(&trng);
+            Cy_SCB_UART_PutArray(UART_SCB, &rand_val, 4);
 
             int rcv_bytes = 0;
-            uint32_t rcvval = 0;
+            uint32_t rcv_val = 0;
             for (int i = 0; i < 10; i++) {
                 ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-                rcv_bytes += Cy_SCB_UART_GetArray(UART_SCB, ((uint8_t*)&rcvval) + rcv_bytes, 4 - rcv_bytes);
-                LOG_DEBUG("Received %d bytes so far\n", rcv_bytes);
-                if (rcv_bytes == 4) {
-                    break;
-                }
+                rcv_bytes += Cy_SCB_UART_GetArray(UART_SCB, ((uint8_t*)&rcv_val) + rcv_bytes, 4 - rcv_bytes);
+                if (rcv_bytes == 4) break;
             }
+
             if (rcv_bytes != 4) {
-                LOG_WARN("Auth failure, didn't receive other number in time\n");
+                LOG_WARN("TRNG check failure, didn't receive other number in time\n");
                 failures++;
                 continue;
             }
 
-            LOG_DEBUG("Their random value: %lu %08lx\n", rcvval, rcvval);
-
-            if (rcvval == randval) {
-                LOG_WARN("Auth failure, received value same as local value\n");
+            if (rcv_val == rand_val) {
+                LOG_WARN("TRNG check failure, received same value as local value\n");
                 failures++;
                 continue;
             }
@@ -162,10 +142,11 @@ void uart_task(void *arg) {
         }
 
 
-        // otherwise, TRNG disambiguation success
         LOG_INFO("Now doing DH\n");
         ulTaskNotifyTake(pdTRUE, 1);
+        CY_ALIGN(4) uint8_t key[16] = {};
         for (;;) {
+            // CY_ALIGN(4) to prevent misaligned r/w
             CY_ALIGN(4) uint16_t secret[8];
 
             // Generate secret
@@ -176,44 +157,33 @@ void uart_task(void *arg) {
                 }
             }
 
-            LOG_DEBUG("Our secret:");
-            for (int i = 0; i < 8; i++) {
-                LOG_DEBUG_NOFMT(" %u\n", secret[i]);
-            } LOG_DEBUG_NOFMT("\n");
-
             // Send
             uint16_t pub[8] = {};
             dh_compute_public_key(pub, secret, 8, DH_DEFAULT_MOD, DH_DEFAULT_GENERATOR);
             Cy_SCB_UART_PutArray(UART_SCB, pub, 16);
 
-            LOG_DEBUG("Our public:");
-            for (int i = 0; i < 8; i++) {
-                LOG_DEBUG_NOFMT(" %u\n", pub[i]);
-            } LOG_DEBUG_NOFMT("\n");
-
             // Receive pub
-            int has_rcv = 0;
-            while (has_rcv < 16) {
-                has_rcv += Cy_SCB_UART_GetArray(UART_SCB, ((uint8_t*)pub) + has_rcv, 16 - has_rcv);
-                if (has_rcv >= 16) break;
+            int rcv_bytes = 0;
+            while (1) {
+                rcv_bytes += Cy_SCB_UART_GetArray(UART_SCB, ((uint8_t*)pub) + rcv_bytes, 16 - rcv_bytes);
+                if (rcv_bytes >= 16) break;
                 ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
             }
 
-            LOG_DEBUG("Their public:");
-            for (int i = 0; i < 8; i++) {
-                LOG_DEBUG_NOFMT(" %u\n", pub[i]);
-            } LOG_DEBUG_NOFMT("\n");
-
             // Compute shared key
-            uint16_t key[8] = {};
-            dh_compute_shared_secret(key, secret, pub, 8, DH_DEFAULT_MOD);
+            dh_compute_shared_secret((uint16_t*)key, secret, pub, 8, DH_DEFAULT_MOD);
 
-            LOG_DEBUG("Shared key:");
-            for (int i = 0; i < 8; i++) {
-                LOG_DEBUG_NOFMT(" %u\n", key[i]);
-            } LOG_DEBUG_NOFMT("\n");
+            break;
+        }
 
-            while (1) ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        xTimerChangePeriod(uart_timer_handle, pdMS_TO_TICKS(100), 0);
+        xTimerReset(uart_timer_handle, 0);
+        ulTaskNotifyTake(pdTRUE, 1);
+
+        // assuming the other side has the same public key
+        // we don't do a check if they can actually encrypt correctly
+        for (;;) {
+            
         }
     }
 }
@@ -224,7 +194,7 @@ char init_uart() {
         LOG_ERR("UART block initialisation failed with %s (0x%08x)\n", get_scb_uart_status_name(uart_status), uart_status);
         return 1;
     }
-    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_RX, CY_GPIO_DM_HIGHZ, 0, 18);
+    Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_RX, CY_GPIO_DM_PULLUP, 0, 18);
     Cy_GPIO_Pin_FastInit(&GPIO->PRT[UART_PRT], UART_TX, CY_GPIO_DM_STRONG_IN_OFF, 0, 18);
 
     // we dont want to accidentally use already used peripheral dividers
