@@ -28,7 +28,7 @@ int main() {
     Cy_SysPm_SwitchToSimoBuck();
     SystemCoreClockUpdate();
 
-    cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, (uint32_t)460800);
+    cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, (uint32_t)115200);
 
     LOG_INFO("\nApp started\n");
 
@@ -150,8 +150,10 @@ int main() {
         uint16_t key[8] = {};
         uint16_t their_pub[8];
         uint16_t our_pub[8] = {};
-        for (;;) {
+        bool fail = true;
+        for (int j = 0; j < 5; j++) {
             CY_ALIGN(4) uint16_t secret[8];
+            Cy_SysLib_Delay(5);
 
             // Generate secret
             {
@@ -177,16 +179,31 @@ int main() {
 
             // Receive pub
             int has_rcv = 0;
-            while (has_rcv < 16) {
+            for (int i = 0; i < 5; i++) {
                 has_rcv += Cy_SCB_UART_GetArray(SCB1, ((uint8_t*)their_pub) + has_rcv, 16 - has_rcv);
                 if (has_rcv >= 16) break;
                 Cy_SysLib_Delay(5);
+            }
+
+            if (has_rcv < 16) {
+                LOG_WARN("Received less than 16 bytes for DH, trying again\n");
+                continue;
             }
 
             LOG_DEBUG("Their public:");
             for (int i = 0; i < 8; i++) {
                 LOG_DEBUG_NOFMT(" %04x", their_pub[i]);
             } LOG_DEBUG_NOFMT("\n");
+
+            for (int i = 0; i < 8; i++) {
+                if (our_pub[i] != their_pub[i]) {
+                    their_id = their_pub[i];
+                    our_id = our_pub[i];
+                    LOG_DEBUG("Index %d\n", i);
+                    LOG_DEBUG("Their ID: %u %04x, our ID: %u %04x\n", their_id, their_id, our_id, our_id);
+                    break;
+                }
+            }
 
             // Compute shared key
             dh_compute_shared_secret(key, secret, their_pub, 8, DH_DEFAULT_MOD);
@@ -196,14 +213,13 @@ int main() {
                 LOG_DEBUG_NOFMT(" %04x", key[i]);
             } LOG_DEBUG_NOFMT("\n");
 
-            for (int i = 0; i < 8; i++) {
-                if (our_pub[i] != their_pub[i]) {
-                    their_id = their_pub[i];
-                    our_id = our_pub[i];
-                }
-            }
-
+            fail = false;
             break;
+        }
+
+        if (fail) {
+            LOG_ERR("DH failed, resetting\n");
+            continue;
         }
 
         cyhal_trng_free(&trng);
@@ -231,6 +247,7 @@ int main() {
         // Same key verification
         LOG_INFO("Now performing symmetric key verification\n");
         {
+            uint16_t tmp_id = 0;
             bool failed = 1;
             for (int i = 0; i < 5; i++) {
                 Cy_SysLib_Delay(5);
@@ -252,9 +269,13 @@ int main() {
                 // Receive encrypted block into `sendbuf'
                 int rcv_bytes = 0;
                 for (int j = 0; j < 5; j++) {
-                    rcv_bytes += Cy_SCB_UART_GetArray(SCB1, ((uint8_t*)&our_id) + rcv_bytes, 2 - rcv_bytes);
+                    rcv_bytes += Cy_SCB_UART_GetArray(SCB1, ((uint8_t*)&tmp_id) + rcv_bytes, 2 - rcv_bytes);
                     if (rcv_bytes >= 2) break;
                     Cy_SysLib_Delay(5);
+                }
+                if (tmp_id != their_id || tmp_id == our_id) {
+                    LOG_ERR("ID error, resetting\n");
+                    break;
                 }
                 rcv_bytes = 0;
                 for (int j = 0; j < 5; j++) {
@@ -295,9 +316,9 @@ int main() {
 
         // Real loop
         LOG_INFO("Successfully connected with other PSoC\n");
-        memset(ivbuf, 0, 16);
 
         char lonely_days = 0;
+        LOG_INFO("t: %04x o: %04x\n", their_id, our_id);
         for (;;) {
             if (lonely_days > 10) {
                 LOG_WARN("More than 10 communication failures in a row; resetting\n");
@@ -325,9 +346,12 @@ int main() {
                 if (next_msg) Cy_SCB_UART_ClearRxFifo(SCB5);
 
                 switch (next_msg) {
-                    case 0: memcpy(srcbuf, msg_keepalive, 16); break;
-                    default: memcpy(srcbuf, msg_unknown, 16); break;
+                    case 0: memcpy(srcbuf, msg_keepalive, 14); break;
+                    default: memcpy(srcbuf, msg_unknown, 14); break;
                 }
+
+                // last 2 bytes are our id
+                ((uint16_t*)srcbuf)[7] = our_id;
 
                 memcpy(ivbuf, our_last_block, 16);
 
@@ -335,7 +359,7 @@ int main() {
                 
                 memcpy(our_last_block, sendbuf, 16);
 
-                LOG_INFO("Sending %s\n", srcbuf);
+                LOG_INFO("Sending %s with id (%u) as last 2 bytes\n", srcbuf, our_id);
 
                 Cy_SCB_UART_PutArray(SCB1, sendbuf, 16);
 
@@ -375,16 +399,31 @@ int main() {
 
             // Check sent message (now in srcbuf)
             Cy_Crypto_Core_Aes_Cbc(CRYPTO, CY_CRYPTO_DECRYPT, 16, ivbuf, srcbuf, sendbuf, &aes_state);
-            for (j = 0; j < 16; j++) if (srcbuf[j] != msg_keepalive[j]) break;
-            if (j >= 16) {
+
+            // Last 2 bytes are ID
+            if (((uint16_t*)srcbuf)[7] != their_id) {
+                LOG_ERR("Last 2 bytes of received message (%u) isn't their id (%u)", ((uint16_t*)srcbuf)[7], their_id);
+                lonely_days++;
+
+                if (((uint16_t*)srcbuf)[7] == our_id) {
+                    LOG_ERR_NOFMT(", it's ours!!!\n");
+                    lonely_days += 5;
+
+                    continue;
+                } else {
+                    LOG_ERR_NOFMT("\n");
+                }
+            }
+            for (j = 0; j < 14; j++) if (srcbuf[j] != msg_keepalive[j]) break;
+            if (j >= 14) {
                 LOG_DEBUG("Receive: %s\n", srcbuf);
                 lonely_days = 0;
                 // keepalive received
                 continue;
             }
 
-            for (j = 0; j < 16; j++) if (srcbuf[j] != msg_unknown[j]) break;
-            if (j >= 16) {
+            for (j = 0; j < 14; j++) if (srcbuf[j] != msg_unknown[j]) break;
+            if (j >= 14) {
                 LOG_ERR("Receive: %s\n", srcbuf);
                 lonely_days = 0;
                 // 'unknown' received
