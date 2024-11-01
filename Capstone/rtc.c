@@ -141,8 +141,8 @@ void init_rtc(bool ask) {
         handle_error();
     }
     
-    LOG_INFO("input in HH MM SS DD MM YY\n");
-    set_time(ask ? INPUT_TIMEOUT_MS : 1000);
+    // LOG_INFO("input in HH MM SS DD MM YY\n");
+    // set_time(ask ? INPUT_TIMEOUT_MS : 1000);
 }
 
 void read_rtc(struct tm *date_time){

@@ -378,7 +378,7 @@ int main() {
 
 
             if (!num_in_rx_buf) {
-                char next_msg = rangeIntr ? UART_MSG_CONN_VOLTMETER : UART_MSG_CONN_KEEPALIVE;
+                char next_msg = rangeIntr ? UART_MSG_CONN_VOLTMETER : UART_MSG_CONN_VOLTMETER;
                 rangeIntr = false;
 
                 srcbuf[0] = next_msg;
@@ -389,7 +389,7 @@ int main() {
                         break;
                     case UART_MSG_CONN_VOLTMETER:
                         {
-                            int16_t code = lastCode;
+                            int16_t code = Cy_SAR_GetResult16(SAR, 0);
                             float32_t val = Cy_SAR_CountsTo_Volts(SAR, 0, code);
                             for (int i = 0; i < 4; i++) {
                                 srcbuf[i + 1] = ((uint8_t*)&val)[i];

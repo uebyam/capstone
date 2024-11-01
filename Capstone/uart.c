@@ -83,10 +83,14 @@ void uart_task(void *arg) {
                         break;
                     }
                 }
+            } else {
+                LOG_WARN("No input on FIFO\n");
             }
 
             if (!Cy_SCB_UART_Put(UART_SCB, 0xAA)) {
                 LOG_WARN("Failed to send adv message!\n");
+            } else {
+                LOG_DEBUG("Sent adv message\n");
             }
         }
 
