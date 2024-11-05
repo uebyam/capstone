@@ -7,4 +7,7 @@
 
 void init_lpcomp(char rtos);
 
+#define LPCOMP_PCBPOWER_PRT 6
+#define LPCOMP_PCBPOWER_PIN 0
+
 #endif

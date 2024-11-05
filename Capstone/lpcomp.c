@@ -31,7 +31,7 @@ const cy_stc_lpcomp_config_t comp_config = {
     .outputMode    =  CY_LPCOMP_OUT_DIRECT,
     .hysteresis    =  CY_LPCOMP_HYST_ENABLE,
     .power         =  CY_LPCOMP_MODE_ULP,
-    .intType       =  CY_LPCOMP_INTR_FALLING
+    .intType       =  CY_LPCOMP_INTR_RISING
 };
 
 const cy_stc_sysint_t interrupt_config = {
@@ -43,6 +43,8 @@ cyhal_lptimer_t lptimer;
 char lptimer_running = 0;
 
 void init_lpcomp(char rtos) {
+    Cy_GPIO_Pin_FastInit(&(GPIO->PRT[LPCOMP_PCBPOWER_PRT]), LPCOMP_PCBPOWER_PIN, CY_GPIO_DM_STRONG_IN_OFF, 1, HSIOM_SEL_GPIO);
+
     BaseType_t rtos_result;
     Cy_LPComp_Init(LPCOMP, CY_LPCOMP_CHANNEL_0, &comp_config);
     Cy_LPComp_SetInputs(
@@ -109,7 +111,7 @@ void comp_task(void *pvParam) {
 
         if (!lptimer_running) {
             lptimer_running = 1;
-            cyhal_lptimer_set_delay(&lptimer, 8192);
+            cyhal_lptimer_set_delay(&lptimer, 1638);
         }
     }
 }
