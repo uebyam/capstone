@@ -129,7 +129,7 @@ void timer_task(void *p) {
 
         if (!lptimer_running) continue;
 
-        if (Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0) == 0) {
+        if (Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0) == 1) {
             LOG_INFO("Detected tamper!\r\n");
             increaseTamperCount();
 
