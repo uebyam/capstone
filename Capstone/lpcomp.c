@@ -22,16 +22,14 @@ void comp_isr();
 void timer_callback(void*, cyhal_lptimer_event_t);
 
 void comp_task(void*);
-void timer_task(void*);
 
 TaskHandle_t lpcomp_task_handle;
-TaskHandle_t timer_task_handle;
 
 const cy_stc_lpcomp_config_t comp_config = {
     .outputMode    =  CY_LPCOMP_OUT_DIRECT,
     .hysteresis    =  CY_LPCOMP_HYST_ENABLE,
     .power         =  CY_LPCOMP_MODE_ULP,
-    .intType       =  CY_LPCOMP_INTR_RISING
+    .intType       =  CY_LPCOMP_INTR_BOTH
 };
 
 const cy_stc_sysint_t interrupt_config = {
@@ -41,6 +39,8 @@ const cy_stc_sysint_t interrupt_config = {
 
 cyhal_lptimer_t lptimer;
 char lptimer_running = 0;
+char lpcomp_triggered = 0;
+char lptimer_expired = 0;
 
 void init_lpcomp(char rtos) {
     Cy_GPIO_Pin_FastInit(&(GPIO->PRT[LPCOMP_PCBPOWER_PRT]), LPCOMP_PCBPOWER_PIN, CY_GPIO_DM_STRONG_IN_OFF, 1, HSIOM_SEL_GPIO);
@@ -58,10 +58,9 @@ void init_lpcomp(char rtos) {
     Cy_SysLib_Delay(1);
 
     Cy_LPComp_SetInterruptMask(LPCOMP, 1);
-
+    
 
     if (rtos) {
-        // stupid rtos
         rtos_result = xTaskCreate(
                 comp_task, "LPComp Task", (configMINIMAL_STACK_SIZE * 4),
                 NULL, (configMAX_PRIORITIES - 3), &lpcomp_task_handle
@@ -75,26 +74,11 @@ void init_lpcomp(char rtos) {
         } else {
             LOG_ERR("LPComp task creation failed\r\n");
         }
-
-
-        rtos_result = xTaskCreate(
-                timer_task, "Drop Detection Task", (configMINIMAL_STACK_SIZE * 4),
-                NULL, (configMAX_PRIORITIES - 3), &timer_task_handle
-                );
-
-        if (rtos_result == pdPASS) {
-            LOG_DEBUG("Timer task created\r\n");
-
-            cyhal_lptimer_init(&lptimer);
-            cyhal_lptimer_register_callback(&lptimer, timer_callback, &lptimer);
-            cyhal_lptimer_enable_event(&lptimer, CYHAL_LPTIMER_COMPARE_MATCH, 4, 1);
-        } else {
-            LOG_ERR("Timer task creation failed\r\n");
-        }
     }
 }
 
 void comp_isr() {
+    lpcomp_triggered = 1 == Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0);
     Cy_LPComp_ClearInterrupt(LPCOMP, 1);
     NVIC_ClearPendingIRQ(lpcomp_interrupt_IRQn);
 
@@ -107,37 +91,37 @@ void comp_isr() {
 void comp_task(void *pvParam) {
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        LOG_DEBUG("Possible tamper detected, waiting for drop detection\r\n");
+        if (lpcomp_triggered) {
+            if (lptimer_expired) {
+                lptimer_expired = 0;
 
-        if (!lptimer_running) {
-            lptimer_running = 1;
-            cyhal_lptimer_set_delay(&lptimer, 1638);
+                LOG_INFO("Tamper detected!\n");
+
+                increaseTamperCount();
+                xTaskNotifyGive(get_ess_handle());
+            } else if (!lptimer_running) {
+                lptimer_running = 1;
+
+                cyhal_lptimer_set_delay(&lptimer, 1638);
+
+                LOG_DEBUG("Possible tamper detected, waiting for drop detection\r\n");
+            }
+        } else {
+            if (lptimer_running) {
+                lptimer_running = 0;
+
+                LOG_DEBUG("Tamper not detected\n");
+            }
         }
     }
 }
 
 void timer_callback(void *refcon, cyhal_lptimer_event_t event) {
+    if (lptimer_running) lptimer_expired = 1;
+    lptimer_running = 0;
+
     BaseType_t xHigherPriorityTaskWoken;
     xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(timer_task_handle, &xHigherPriorityTaskWoken);
+    vTaskNotifyGiveFromISR(lpcomp_task_handle, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
-
-void timer_task(void *p) {
-    while (1) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-        if (!lptimer_running) continue;
-
-        if (Cy_LPComp_GetCompare(LPCOMP, CY_LPCOMP_CHANNEL_0) == 1) {
-            LOG_INFO("Detected tamper!\r\n");
-            increaseTamperCount();
-
-            xTaskNotifyGive(get_ess_handle());
-        } else {
-            LOG_DEBUG("Did not detect tamper\r\n");
-        }
-
-        lptimer_running = 0;
-    }
 }

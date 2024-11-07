@@ -378,7 +378,7 @@ int main() {
 
 
             if (!num_in_rx_buf) {
-                char next_msg = rangeIntr ? UART_MSG_CONN_VOLTMETER : UART_MSG_CONN_VOLTMETER;
+                char next_msg = rangeIntr ? UART_MSG_CONN_VOLTMETER : UART_MSG_CONN_KEEPALIVE;
                 rangeIntr = false;
 
                 srcbuf[0] = next_msg;
@@ -449,7 +449,7 @@ int main() {
                     Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
                     break;
                 } else {
-                    LOG_WARN("Unknown command %02x\n", msg);
+                    LOG_WARN("Unknown command %02lx\n", msg);
                 }
             } else {
                 LOG_WARN("No bytes received\n");
