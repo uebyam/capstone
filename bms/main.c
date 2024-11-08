@@ -17,6 +17,7 @@
 #endif
 
 void init_uart_on_scb1();
+const char *get_uart_msg_type_name(uart_msg_type_t name);
 
 bool rangeIntr = false;
 int16_t lastCode = 0;
@@ -407,7 +408,7 @@ int main() {
                 
                 memcpy(our_last_block, sendbuf, 16);
 
-                LOG_INFO("Sending %02x with id (%u) as last 2 bytes\n", srcbuf[0], our_id);
+                LOG_INFO("Sending %s (%02x) with id (%u)\n", get_uart_msg_type_name(srcbuf[0]), srcbuf[0], our_id);
 
                 Cy_SCB_UART_Put(UART_SCB, UART_MSG_APP);
                 Cy_SCB_UART_PutArray(SCB1, sendbuf, 16);
@@ -487,7 +488,7 @@ int main() {
                     LOG_ERR_NOFMT("\n");
                 }
             }
-            LOG_DEBUG("Received %02x\n", srcbuf[0]);
+            LOG_DEBUG("Received %s (%02x)\n", get_uart_msg_type_name(srcbuf[0]), srcbuf[0]);
 
             switch (srcbuf[0]) {
                 case UART_MSG_CONN_KEEPALIVE:
@@ -523,3 +524,19 @@ void init_uart_on_scb1() {
 
     Cy_SCB_UART_Enable(SCB1);
 }
+
+#define CASE_RETURN_STR(x) case x: return #x;
+const char *get_uart_msg_type_name(uart_msg_type_t name) {
+    switch (status) {
+        CASE_RETURN_STR(UART_MSG_CONN_KEEPALIVE)
+        CASE_RETURN_STR(UART_MSG_CONN_VOLTMETER)
+        CASE_RETURN_STR(UART_MSG_CONN_UNKNOWN)
+		CASE_RETURN_STR(UART_MSG_ADV)
+		CASE_RETURN_STR(UART_MSG_APP)
+		CASE_RETURN_STR(UART_MSG_ACK)
+		CASE_RETURN_STR(UART_MSG_RESET)
+    }
+    return "UNKNOWN_MESSAGE";
+}
+
+
