@@ -83,14 +83,10 @@ void uart_task(void *arg) {
                         break;
                     }
                 }
-            } else {
-                LOG_WARN("No input on FIFO\n");
             }
 
             if (!Cy_SCB_UART_Put(UART_SCB, 0xAA)) {
                 LOG_WARN("Failed to send adv message!\n");
-            } else {
-                LOG_DEBUG("Sent adv message\n");
             }
         }
 
@@ -560,20 +556,28 @@ const char *get_sysclk_status_name(cy_en_sysclk_status_t status) {
 
 void handle_uart_msg(uint32_t cmd, uint8_t* buf, uint16_t* errvar) {
     if (cmd == 0xFFFFFFFF) return 1;
+    static uint8_t last_cmd = UART_MSG_CONN_KEEPALIVE;
 
     switch (buf[0]) {
         case UART_MSG_CONN_KEEPALIVE:
             // Normal keepalive
             *errvar = 0;
+
+            if (last_cmd == UART_MSG_CONN_VOLTMETER) {
+                LOG_INFO("Battery voltage restored\n");
+            }
             break;
+
         case UART_MSG_CONN_VOLTMETER:
             // Voltmeter reading
-            float32_t volts;
-            for (int i = 0; i < 4; i++) {
-                ((uint8_t*)&volts)[i] = buf[i + 1];
+            if (last_cmd == UART_MSG_CONN_KEEPALIVE) {
+                float32_t volts;
+                for (int i = 0; i < 4; i++) {
+                    ((uint8_t*)&volts)[i] = buf[i + 1];
+                }
+                LOG_INFO("Battery voltage dropped! Reading from BMS: %f\n", volts);
+                *errvar = 0;
             }
-            LOG_INFO("Voltmeter reading from BMS: %f\n", volts);
-            *errvar = 0;
             break;
 
         default:

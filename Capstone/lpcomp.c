@@ -89,6 +89,9 @@ void comp_isr() {
 }
 
 void comp_task(void *pvParam) {
+    cyhal_lptimer_init(&lptimer);
+    cyhal_lptimer_register_callback(&lptimer, timer_callback, &lptimer);
+    cyhal_lptimer_enable_event(&lptimer, CYHAL_LPTIMER_COMPARE_MATCH, 4, 1);
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         if (lpcomp_triggered) {
