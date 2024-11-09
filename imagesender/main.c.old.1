@@ -1,0 +1,103 @@
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+#include "cybsp.h"
+#include "cyhal.h"
+#include "cy_pdl.h"
+#include "cy_retarget_io.h"
+
+#include <ctype.h>
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+const int imageWidth = 80;
+const int imageHeight = 45;
+
+const char image[] = 
+"                                .:xxxxxxxx:.                                    " 
+"                             .xxxxxxxxxxxxxxxx.                                 " 
+"                            :xxxxxxxxxxxxxxxxxxx:.                              " 
+"                           .xxxxxxxxxxxxxxxxxxxxxxx:                            " 
+"                          :xxxxxxxxxxxxxxxxxxxxxxxxx:                           " 
+"                          xxxxxxxxxxxxxxxxxxxxxxxxxxX:                          " 
+"                          xxx:::xxxxxxxx::::xxxxxxxxx:                          " 
+"                         .xx:   ::xxxxx:     :xxxxxxxx                          " 
+"                         :xx  x.  xxxx:  xx.  xxxxxxxx                          " 
+"                         :xx xxx  xxxx: xxxx  :xxxxxxx                          " 
+"                         'xx 'xx  xxxx:. xx'  xxxxxxxx                          " 
+"                          xx ::::::xx:::::.   xxxxxxxx                          " 
+"                          xx:::::.::::.:::::::xxxxxxxx                          " 
+"                          :x'::::'::::':::::':xxxxxxxxx.                        " 
+"                          :xx.::::::::::::'   xxxxxxxxxx                        " 
+"                          :xx: '::::::::'     :xxxxxxxxxx.                      " 
+"                         .xx     '::::'        'xxxxxxxxxx.                     " 
+"                       .xxxx                     'xxxxxxxxx.                    " 
+"                     .xxxx                         'xxxxxxxxx.                  " 
+"                   .xxxxx:                          xxxxxxxxxx.                 " 
+"                  .xxxxx:'                          xxxxxxxxxxx.                " 
+"                 .xxxxxx:::.           .       ..:::_xxxxxxxxxxx:.              " 
+"                .xxxxxxx''      ':::''            ''::xxxxxxxxxxxx.             " 
+"                xxxxxx            :                  '::xxxxxxxxxxxx            " 
+"               :xxxx:'            :                    'xxxxxxxxxxxx:           " 
+"              .xxxxx              :                     ::xxxxxxxxxxxx          " 
+"              xxxx:'                                    ::xxxxxxxxxxxx          " 
+"              xxxx               .                      ::xxxxxxxxxxxx.         " 
+"          .:xxxxxx               :                      ::xxxxxxxxxxxx::        " 
+"          xxxxxxxx               :                      ::xxxxxxxxxxxxx:        " 
+"          xxxxxxxx               :                      ::xxxxxxxxxxxxx:        " 
+"          ':xxxxxx               '                      ::xxxxxxxxxxxx:'        " 
+"            .:. xx:.                                   .:xxxxxxxxxxxxx'         " 
+"          ::::::.'xx:.            :                  .:: xxxxxxxxxxx':          " 
+"  .:::::::::::::::.'xxxx.                            ::::'xxxxxxxx':::.         " 
+"  ::::::::::::::::::.'xxxxx                          :::::.'.xx.'::::::.        " 
+"  ::::::::::::::::::::.'xxxx:.                       :::::::.'':::::::::        " 
+"  ':::::::::::::::::::::.'xx:'                     .'::::::::::::::::::::..     " 
+"    :::::::::::::::::::::.'xx                    .:: :::::::::::::::::::::::    " 
+"  .:::::::::::::::::::::::. xx               .::xxxx :::::::::::::::::::::::    " 
+"  :::::::::::::::::::::::::.'xxx..        .::xxxxxxx ::::::::::::::::::::'      " 
+"  '::::::::::::::::::::::::: xxxxxxxxxxxxxxxxxxxxxxx :::::::::::::::::'         " 
+"    '::::::::::::::::::::::: xxxxxxxxxxxxxxxxxxxxxxx :::::::::::::::'           " 
+"        ':::::::::::::::::::_xxxxxx::'''::xxxxxxxxxx '::::::::::::'             " 
+"             '':.::::::::::'                        `._'::::::''                ";
+
+int main() {
+    cybsp_init();
+    __enable_irq();
+
+    cy_retarget_io_init(P5_1, P5_0, 115200);
+
+    int byte = 0;
+    int bytes = imageWidth * imageHeight;
+
+    uint8_t key[16] = "key key key key ";
+    uint8_t iv[16] = "iviviviviviviviv";
+
+    uint8_t enc[sizeof(image)];
+
+    cy_stc_crypto_aes_state_t aesState = {};
+    Cy_Crypto_Core_Enable(CRYPTO);
+    Cy_Crypto_Core_Aes_Init(CRYPTO, key, CY_CRYPTO_KEY_AES_128, &aesState);
+    Cy_Crypto_Core_Aes_Ecb_Setup(CRYPTO, CY_CRYPTO_ENCRYPT, &aesState);
+    Cy_Crypto_Core_Aes_Ecb_Update(CRYPTO, sizeof image, enc, image, &aesState);
+    Cy_Crypto_Core_Aes_Ecb_Finish(CRYPTO, &aesState);
+
+    for (int y = 0; y < imageHeight; y++) {
+        for (int x = 0; x < imageWidth; x++) {
+            if (isprint(enc[byte]))
+                printf("%c", enc[byte]);
+            else
+                printf(".");
+
+            byte++;
+        }
+        printf("\r\n");
+    }
+    printf("\r\n");
+    printf("\r\n");
+
+    Cy_Crypto_Core_Aes_Free(CRYPTO, &aesState);
+}

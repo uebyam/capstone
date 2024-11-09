@@ -1,0 +1,84 @@
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+#include "cybsp.h"
+#include "cyhal.h"
+#include "cy_pdl.h"
+#include "cy_retarget_io.h"
+
+#include <ctype.h>
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+const int imageWidth = 384;
+const int imageHeight = 96;
+
+#include "image.h"
+
+int main() {
+    cybsp_init();
+    __enable_irq();
+
+    cy_retarget_io_init(P5_1, P5_0, 500000);
+
+    int bytes = imageWidth * imageHeight;
+    int byte = bytes - 1;
+
+    uint8_t key[16] = "key key key key ";
+    uint8_t iv[16] = "iviviviviviviviv";
+
+    uint8_t enc[sizeof(image)];
+
+    cy_stc_crypto_aes_state_t aesState = {};
+    Cy_Crypto_Core_Enable(CRYPTO);
+    Cy_Crypto_Core_Aes_Init(CRYPTO, key, CY_CRYPTO_KEY_AES_128, &aesState);
+    Cy_Crypto_Core_Aes_Ecb_Setup(CRYPTO, CY_CRYPTO_ENCRYPT, &aesState);
+    Cy_Crypto_Core_Aes_Ecb_Update(CRYPTO, sizeof image, enc, image, &aesState);
+    Cy_Crypto_Core_Aes_Ecb_Finish(CRYPTO, &aesState);
+
+    for (int y = imageHeight - 1; y >= 0; y--) {
+        for (int x = 0; x < imageWidth; x++) {
+            int byte = x + y * imageWidth;
+            uint8_t colr = image[byte * 3];
+            uint8_t colg = image[byte * 3 + 1];
+            uint8_t colb = image[byte * 3 + 2];
+
+            printf("\033[48;2;%u;%u;%um ", colr, colg, colb);
+        }
+        printf("\033[m\r\n");
+    }
+    for (int y = imageHeight - 1; y >= 0; y--) {
+        for (int x = 0; x < imageWidth; x++) {
+            int byte = x + y * imageWidth;
+            uint8_t colr = enc[byte * 3];
+            uint8_t colg = enc[byte * 3 + 1];
+            uint8_t colb = enc[byte * 3 + 2];
+
+            printf("\033[48;2;%u;%u;%um ", colr, colg, colb);
+        }
+        printf("\033[m\r\n");
+    }
+    Cy_Crypto_Core_Aes_Cbc_Set_IV(CRYPTO, iv, &aesState);
+    Cy_Crypto_Core_Aes_Cbc_Setup(CRYPTO, CY_CRYPTO_ENCRYPT, &aesState);
+    Cy_Crypto_Core_Aes_Cbc_Update(CRYPTO, sizeof image, enc, image, &aesState);
+    Cy_Crypto_Core_Aes_Cbc_Finish(CRYPTO, &aesState);
+    for (int y = imageHeight - 1; y >= 0; y--) {
+        for (int x = 0; x < imageWidth; x++) {
+            int byte = x + y * imageWidth;
+            uint8_t colr = enc[byte * 3];
+            uint8_t colg = enc[byte * 3 + 1];
+            uint8_t colb = enc[byte * 3 + 2];
+
+            printf("\033[48;2;%u;%u;%um ", colr, colg, colb);
+        }
+        printf("\033[m\r\n");
+    }
+    printf("\r\n");
+    printf("\r\n");
+
+    // Cy_Crypto_Core_Aes_Free(CRYPTO, &aesState);
+}
