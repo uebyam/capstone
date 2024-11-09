@@ -65,7 +65,6 @@ void uart_task(void *arg) {
     cyhal_trng_t trng;
 
     const uint16_t UART_CONN_FAILURE_THRESHOLD = 10;
-    char logbits = 255;
 
     while (1) {
         // Advertisement loop
@@ -237,8 +236,6 @@ void uart_task(void *arg) {
 
         // Encrypted message chain starts with "verification"
         const uint8_t msg_yea[16] = "verification";
-        const uint8_t msg_keepalive[16] = "keepalive";
-        const uint8_t msg_unknown[16] = "unknown";
         // Reuse buffers
         uint8_t* our_last_block = (uint8_t*)our_pub;
         uint8_t* their_last_block = (uint8_t*)their_pub;
@@ -558,7 +555,7 @@ const char *get_sysclk_status_name(cy_en_sysclk_status_t status) {
 
 
 void handle_uart_msg(uint32_t cmd, uint8_t* buf, uint16_t* errvar) {
-    if (cmd == 0xFFFFFFFF) return 1;
+    if (cmd == 0xFFFFFFFF) return;
     static uint8_t last_msg = UART_MSG_CONN_KEEPALIVE;
 
     switch (buf[0]) {

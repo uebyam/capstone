@@ -106,10 +106,8 @@ static void set_time(uint32_t timeout_ms);
 static bool validate_date_time(int sec, int min, int hour,
                                 int mday, int month, int year);
 static int get_day_of_week(int day, int month, int year);
-static void set_dst_feature(uint32_t timeout_ms);
 static cy_rslt_t fetch_time_data(char *buffer,
                              uint32_t timeout_ms, uint32_t *space_count);
-static int get_week_of_month(int day, int month, int year);
 
 /*******************************************************************************
 * Function Name: handle_error
@@ -360,37 +358,6 @@ static int get_day_of_week(int day, int month, int year)
     ret=(day+(13*(month+1)/5)+k+(k/4)+(j/4)+(5*j))%DAYS_PER_WEEK;
     ret = ((ret + 6) % DAYS_PER_WEEK);
     return ret;
-}
-
-/*******************************************************************************
-* Function Name: get_week_of_month
-********************************************************************************
-* Summary:
-*  Returns week number of the month for a year and a month that are passed
-*  through parameters.
-*
-* Parameter:
-*  int day          : The day of the month, Valid range 1..31.
-*  int month        : The month of the year
-*  int year         : The year value. Valid range non-zero value.
-*
-* Return:
-*  Returns a week of the month (0 to 5)
-*
-*******************************************************************************/
-static int get_week_of_month(int day, int month, int year)
-{
-    int count = 0, day_of_week = 0, weekend_day = 0;
-
-    day_of_week = get_day_of_week(1, month, year);
-    weekend_day = 7 - day_of_week;
-    while (day > weekend_day)
-    {
-        count++;
-        weekend_day += 7;
-    }
-
-    return count;
 }
 
 /*******************************************************************************

@@ -101,9 +101,11 @@ int main(void) {
         LOG_ERR("ESS task creation failed\n");
     }
 
+#if (LOGLEVEL > 4)
     uint16_t tamper_count = getTamperCount();
 
     LOG_DEBUG("Current tamper count: %u\n", tamper_count);
+#endif
 
     // Bluetooth application initialisation is started from user button
     vTaskStartScheduler();
@@ -112,7 +114,7 @@ int main(void) {
     LOG_ERR("Program termination\r\n");
 }
 
-void start_bt() {
+void start_bt(void) {
     global_bluetooth_started = true;
     wiced_result_t wiced_result;
 
@@ -177,7 +179,7 @@ static void bt_app_init(void) {
     app_start_advertisement();
 }
 
-void global_start_advertisement() {
+void global_start_advertisement(void) {
     app_start_advertisement();
 }
 
