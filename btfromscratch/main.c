@@ -66,7 +66,6 @@ void blinky_task(void *arg) {
 		ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
 
 		Cy_GPIO_Inv(GPIO_PRT13, 7);
-		Cy_SysLib_Delay(50);
 	}
 }
 
@@ -525,7 +524,7 @@ int main() {
 
 	LOG_NOFMT("\r\n");
 
-	if (pdPASS == xTaskCreate(blinky_task, "blinky task", configMINIMAL_STACK_SIZE * 8, 0, configMAX_PRIORITIES - 3, &blinky_task_handle)) {
+	if (pdPASS == xTaskCreate(blinky_task, "blinky task", configMINIMAL_STACK_SIZE * 8, 0, configMAX_PRIORITIES - 2, &blinky_task_handle)) {
 		LOG_DEBUG("Created blinky task\r\n");
 	}
 
