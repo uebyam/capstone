@@ -699,7 +699,7 @@
                         <Param id="num_channels" value="1"/>
                         <Param id="range_cond" value="CY_SAR_RANGE_COND_BELOW"/>
                         <Param id="range_high" value="0"/>
-                        <Param id="range_low" value="768"/>
+                        <Param id="range_low" value="384"/>
                         <Param id="sample_rate" value="20000"/>
                         <Param id="scanCnt" value="false"/>
                         <Param id="scanCntIntr" value="false"/>
@@ -710,7 +710,7 @@
                         <Param id="trigger_mode" value="CY_SAR_TRIGGER_MODE_FW_AND_HWEDGE"/>
                         <Param id="vneg_select" value="CY_SAR_NEG_SEL_VREF"/>
                         <Param id="vref_byp_cap" value="true"/>
-                        <Param id="vref_select" value="CY_SAR_VREF_SEL_VDDA_DIV_2"/>
+                        <Param id="vref_select" value="CY_SAR_VREF_SEL_VDDA"/>
                         <Param id="vref_voltage" value="1.200"/>
                     </Parameters>
                 </Personality>
@@ -785,12 +785,6 @@
                     <Parameters>
                         <Param id="divider" value="1"/>
                         <Param id="sourceClockNumber" value="0"/>
-                    </Parameters>
-                </Personality>
-                <Personality template="ilo" version="3.0">
-                    <Block location="srss[0].clock[0].ilo[0]" locked="true"/>
-                    <Parameters>
-                        <Param id="hibernate" value="true"/>
                     </Parameters>
                 </Personality>
                 <Personality template="imo" version="3.0">

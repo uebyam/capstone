@@ -357,6 +357,7 @@ int main() {
         char lonely_days = 0;
         LOG_INFO("t: %04x o: %04x\n", their_id, our_id);
         for (;;) {
+            LOG_INFO_NOFMT("\n");
             if (lonely_days > 10) {
                 LOG_WARN("More than 10 communication failures in a row; resetting\n");
                 Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
@@ -408,7 +409,12 @@ int main() {
                 
                 memcpy(our_last_block, sendbuf, 16);
 
-                LOG_INFO("Sending %s (%02x) with id (%u)\n", get_uart_msg_type_name(srcbuf[0]), srcbuf[0], our_id);
+                LOG_DEBUG("Sending ");
+                for (int i = 0; i < 16; i++) {
+                    LOG_DEBUG_NOFMT("%02x", sendbuf[i]);
+                }
+                LOG_DEBUG_NOFMT("\n");
+                LOG_INFO("\033[1;93mTo TDM:\033[0;93m %s (%02x) with id (%u)\033[m\n", get_uart_msg_type_name(srcbuf[0]), srcbuf[0], our_id);
 
                 Cy_SCB_UART_Put(UART_SCB, UART_MSG_APP);
                 Cy_SCB_UART_PutArray(SCB1, sendbuf, 16);
@@ -458,6 +464,12 @@ int main() {
                 continue;
             }
 
+            LOG_DEBUG("Receive ");
+            for (int i = 0; i < 16; i++) {
+                LOG_DEBUG_NOFMT("%02x", sendbuf[i]);
+            }
+            LOG_DEBUG_NOFMT("\n");
+
             // Their message should not be identical to ours!
             int j;
             for (j = 0; j < 16; j++) if (sendbuf[j] != ivbuf[j]) break;
@@ -488,7 +500,7 @@ int main() {
                     LOG_ERR_NOFMT("\n");
                 }
             }
-            LOG_DEBUG("Received %s (%02x)\n", get_uart_msg_type_name(srcbuf[0]), srcbuf[0]);
+            LOG_INFO("\033[1;36mFrom TDM:\033[0;36m %s (%02x)\033[m\n", get_uart_msg_type_name(srcbuf[0]), srcbuf[0]);
 
             switch (srcbuf[0]) {
                 case UART_MSG_CONN_KEEPALIVE:
@@ -527,7 +539,7 @@ void init_uart_on_scb1() {
 
 #define CASE_RETURN_STR(x) case x: return #x;
 const char *get_uart_msg_type_name(uart_msg_type_t name) {
-    switch (status) {
+    switch (name) {
         CASE_RETURN_STR(UART_MSG_CONN_KEEPALIVE)
         CASE_RETURN_STR(UART_MSG_CONN_VOLTMETER)
         CASE_RETURN_STR(UART_MSG_CONN_UNKNOWN)
@@ -538,5 +550,3 @@ const char *get_uart_msg_type_name(uart_msg_type_t name) {
     }
     return "UNKNOWN_MESSAGE";
 }
-
-
