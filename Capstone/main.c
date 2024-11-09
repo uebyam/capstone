@@ -51,6 +51,7 @@ volatile int uxTopUsedPriority;
 extern const wiced_bt_cfg_settings_t wiced_bt_cfg_settings;
 
 TaskHandle_t ess_task_handle;
+TimerHandle_t watchdog_timer_handle;
 
 uint16_t app_bt_conn_id;
 
@@ -60,6 +61,8 @@ static void bt_app_init(void);
 static void app_start_advertisement(void);
 
 void ess_task(void *pvParam);
+
+void watchdog_reset_callback(TimerHandle_t timer);
 
 int main(void) {
     CY_ASSERT(CY_RSLT_SUCCESS == cybsp_init());
@@ -72,7 +75,42 @@ int main(void) {
     Cy_SysPm_SwitchToSimoBuck();
     SystemCoreClockUpdate();
 
+    Cy_WDT_Unlock();
+    Cy_WDT_Init();
+    Cy_WDT_ClearInterrupt();
+    Cy_WDT_Lock();
+
     cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX, CY_RETARGET_IO_BAUDRATE);
+
+    LOG_FATAL_NOFMT("\n");
+
+    uint32_t resetReason = Cy_SysLib_GetResetReason();
+    if (resetReason & CY_SYSLIB_RESET_HWWDT) {
+        LOG_WARN("System reset due to WDT (system hang)\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_ACT_FAULT) {
+        LOG_WARN("System reset due to ACT FAULT\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_DPSLP_FAULT) {
+        LOG_WARN("System reset due to DPSLP FAULT\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_SOFT) {
+        LOG_INFO("System reset due to soft reset\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_HIB_WAKEUP) {
+        LOG_DEBUG("System reset due to hibernation wakeup\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_SWWDT1) {
+        LOG_INFO("System reset due to MCWDT 1\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_SWWDT2) {
+        LOG_INFO("System reset due to MCWDT 1\n");
+    }
+    if (resetReason & CY_SYSLIB_RESET_SWWDT3) {
+        LOG_INFO("System reset due to MCWDT 1\n");
+    }
+
+    Cy_SysLib_ClearResetReason();
 
     init_userbutton();
     init_lpcomp(1);
@@ -84,6 +122,10 @@ int main(void) {
     } else {
         LOG_DEBUG("Initialised UART\n");
     }
+
+    Cy_WDT_Unlock();
+    Cy_WDT_Enable();
+    Cy_WDT_Lock();
 
     uxTopUsedPriority = configMAX_PRIORITIES - 1;
     BaseType_t rtos_result;
@@ -99,6 +141,13 @@ int main(void) {
         LOG_DEBUG("ESS task created successfully\n");
     } else {
         LOG_ERR("ESS task creation failed\n");
+    }
+
+    watchdog_timer_handle = xTimerCreate("watchdogres", pdMS_TO_TICKS(500), pdTRUE, 0, watchdog_reset_callback);
+    if (watchdog_timer_handle) {
+        xTimerStart(watchdog_timer_handle, 0);
+    } else {
+        LOG_DEBUG("Watchdog timer reset created\n");
     }
 
 #if (LOGLEVEL > 4)
@@ -284,4 +333,8 @@ void ess_task(void *pvParam) {
 
 TaskHandle_t get_ess_handle() {
     return ess_task_handle;
+}
+
+void watchdog_reset_callback(TimerHandle_t timer) {
+    Cy_WDT_ClearWatchdog();
 }
