@@ -307,7 +307,7 @@ const char *get_gatt_optype_name(wiced_bt_gatt_optype_t optype) {
 */
 void print_bd_address(char * msg, wiced_bt_device_address_t bdaddr)
 {
-    LOG_INFO("%s %02X:%02X:%02X:%02X:%02X:%02X\n",msg? msg:"", bdaddr[0],
+    LOG_DEBUG("%s %02X:%02X:%02X:%02X:%02X:%02X\n",msg? msg:"", bdaddr[0],
                                               bdaddr[1],
                                               bdaddr[2],
                                               bdaddr[3],

@@ -141,8 +141,8 @@ void init_rtc(bool ask) {
         handle_error();
     }
     
-    // LOG_INFO("input in HH MM SS DD MM YY\n");
-    // set_time(ask ? INPUT_TIMEOUT_MS : 1000);
+    LOG_INFO("input in HH MM SS DD MM YY\n");
+    set_time(ask ? INPUT_TIMEOUT_MS : 1000);
 }
 
 void read_rtc(struct tm *date_time){
@@ -223,7 +223,7 @@ static void set_time(uint32_t timeout_ms)
     {
         if (space_count != MIN_SPACE_KEY_COUNT)
         {
-            LOG_WARN("Invalid values! Please enter the"
+            LOG_INFO("Invalid values! Please enter the"
                     "values in specified format\n");
         }
         else
@@ -249,20 +249,20 @@ static void set_time(uint32_t timeout_ms)
                 }
                 else
                 {
-                    LOG_ERR("Writing RTC time failed\n");
+                    LOG_DEBUG("Writing RTC time failed\n");
                     handle_error();
                 }
             }
             else
             {
-                LOG_WARN("Invalid values! Please enter the values in specified"
+                LOG_INFO("Invalid values! Please enter the values in specified"
                        " format\n");
             }
         }
     }
     else
     {
-        LOG_ERR("Timeout\n");
+        LOG_DEBUG("Timeout\n");
     }
 }
 /*******************************************************************************

@@ -98,7 +98,7 @@ void comp_task(void *pvParam) {
             if (lptimer_expired) {
                 lptimer_expired = 0;
 
-                LOG_INFO("Tamper detected!\n");
+                LOG_INFO("\033[;1;97;48;5;196mTamper detected:\033[;1;38;5;196m Battery lifted\033[m\n");
 
                 increaseTamperCount();
                 xTaskNotifyGive(get_ess_handle());

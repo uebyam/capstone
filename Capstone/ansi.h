@@ -14,7 +14,7 @@
 // 5: Even more info about what the code is doing
 
 
-#define LOGLEVEL 5
+#define LOGLEVEL 4
 
 #if (LOGLEVEL > 0)
 #define LOG_CLEARFMT() printf("\033[m")
@@ -44,7 +44,7 @@
 
 #if (LOGLEVEL > 3)
 #define LOG_INFO_NOFMT(...) printf(__VA_ARGS__)
-#define LOG_INFO(...) printf("\033[0;1;39m[INFO  %s]\033[0;39m ", __func__); printf(__VA_ARGS__)
+#define LOG_INFO(...) printf("\033[0;1m[INFO  %s]\033[m ", __func__); printf(__VA_ARGS__)
 #else
 #define LOG_INFO_NOFMT(...)
 #define LOG_INFO(...)

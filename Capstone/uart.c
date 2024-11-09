@@ -65,6 +65,7 @@ void uart_task(void *arg) {
     cyhal_trng_t trng;
 
     const uint16_t UART_CONN_FAILURE_THRESHOLD = 10;
+    char logbits = 255;
 
     while (1) {
         // Advertisement loop
@@ -86,7 +87,7 @@ void uart_task(void *arg) {
             }
 
             if (!Cy_SCB_UART_Put(UART_SCB, 0xAA)) {
-                LOG_WARN("Failed to send adv message!\n");
+                LOG_DEBUG("Failed to send adv message\n");
             }
         }
 
@@ -105,7 +106,7 @@ void uart_task(void *arg) {
             }
 
             if (fail) {
-                LOG_WARN("Failed to receive expected ADV ACK byte; possible feedback?\n");
+                LOG_DEBUG("Failed to receive expected ADV ACK byte; possible feedback?\n");
                 Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
                 xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
                 xTimerReset(uart_timer_handle, 0);
@@ -132,13 +133,13 @@ void uart_task(void *arg) {
             }
 
             if (rcv_bytes != 4) {
-                LOG_WARN("TRNG check failure, didn't receive other number in time\n");
+                LOG_DEBUG("TRNG check failure, didn't receive other number in time\n");
                 failures++;
                 continue;
             }
 
             if (rcv_val == rand_val) {
-                LOG_WARN("TRNG check failure, received same value as local value\n");
+                LOG_DEBUG("TRNG check failure, received same value as local value\n");
                 failures++;
                 continue;
             }
@@ -151,13 +152,13 @@ void uart_task(void *arg) {
             xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
             xTimerReset(uart_timer_handle, 0);
             ulTaskNotifyTake(pdTRUE, 1);
-            LOG_WARN("Resetting UART connection state; too many failed auth attempts\n");
+            LOG_DEBUG("Resetting UART connection state; too many failed auth attempts\n");
             Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
             continue;
         }
 
 
-        LOG_INFO("Now doing DH\n");
+        LOG_DEBUG("Now doing DH\n");
         uint16_t our_id = 0, their_id = 0;
         bool fail = true;
         CY_ALIGN(4) uint16_t their_pub[8];
@@ -195,10 +196,10 @@ void uart_task(void *arg) {
             // Compute shared key
             dh_compute_shared_secret((uint16_t*)key, secret, their_pub, 8, DH_DEFAULT_MOD);
 
-            LOG_INFO("Shared key:");
+            LOG_DEBUG("Shared key:");
             for (int i = 0; i < 8; i++) {
-                LOG_INFO_NOFMT(" %04x", ((uint16_t*)key)[i]);
-            } LOG_INFO_NOFMT("\n");
+                LOG_DEBUG_NOFMT(" %04x", ((uint16_t*)key)[i]);
+            } LOG_DEBUG_NOFMT("\n");
 
             int i = 0;
             for (; i < 8; i++) {
@@ -214,7 +215,7 @@ void uart_task(void *arg) {
         }
 
         if (fail) {
-            LOG_WARN("DH failed, resetting\n");
+            LOG_DEBUG("DH failed, resetting\n");
             Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
             cyhal_trng_free(&trng);
             xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
@@ -275,11 +276,11 @@ void uart_task(void *arg) {
                 xTimerReset(uart_timer_handle, 0);
                 ulTaskNotifyTake(pdTRUE, 1);
                 if (rcv_bytes < 2) {
-                    LOG_WARN("ID error (did not receive bytes, only received %d), resetting\n", rcv_bytes);
+                    LOG_DEBUG("ID error (did not receive bytes, only received %d), resetting\n", rcv_bytes);
                     break;
                 }
                 if (tmp_id != their_id || tmp_id == our_id) {
-                    LOG_WARN("ID error, resetting\n");
+                    LOG_DEBUG("ID error, resetting\n");
                     break;
                 }
                 rcv_bytes = 0;
@@ -308,7 +309,7 @@ void uart_task(void *arg) {
             ulTaskNotifyTake(pdTRUE, 1);
 
             if (failed) {
-                LOG_WARN("AES key check failed, check connection; resetting\n");
+                LOG_DEBUG("AES key check failed, check connection; resetting\n");
                 Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
                 Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                 Cy_Crypto_Core_Disable(CRYPTO);
@@ -319,16 +320,17 @@ void uart_task(void *arg) {
 
 
         // Real loop
-        LOG_INFO("Successfully connected with other PSoC\n");
+        LOG_INFO("\033[1;32mConnected with BMS\033[m\n");
 
         uint16_t lonely_days = 0;
         for (;;) {
             if (lonely_days > 1) {
-                LOG_WARN("Possible UART connection failure\n");
+                LOG_DEBUG("Possible UART connection failure\n");
             }
             if (lonely_days > UART_CONN_FAILURE_THRESHOLD) {
-                LOG_WARN("More than %d communication failures; resetting\n", UART_CONN_FAILURE_THRESHOLD);
+                LOG_DEBUG("More than %d communication failures; resetting\n", UART_CONN_FAILURE_THRESHOLD);
                 Cy_SCB_UART_Put(UART_SCB, UART_MSG_RESET);
+                LOG_INFO("\033[;1;97;48;5;196mTamper detected:\033[;1;38;5;196m Disconnected from BMS\033[m\n");
                 Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                 Cy_Crypto_Core_Disable(CRYPTO);
                 Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
@@ -375,7 +377,7 @@ void uart_task(void *arg) {
                 cmd = Cy_SCB_UART_Get(UART_SCB);
 
                 if (cmd == 0xFFFFFFFF) {
-                    LOG_WARN("Reported elements in rx buffer, but get failed\n");
+                    LOG_DEBUG("Reported elements in rx buffer, but get failed\n");
                     lonely_days++;
                     continue;
                 }
@@ -396,16 +398,17 @@ void uart_task(void *arg) {
 
                 } else if (cmd == UART_MSG_RESET || cmd == UART_MSG_ADV) {
                     // reset
-                    LOG_WARN("External reset requested; resetting\n");
+                    LOG_DEBUG("External reset requested; resetting\n");
                     xTimerChangePeriod(uart_timer_handle, UART_CONN_SLOW_TICKS, 0);
                     xTimerReset(uart_timer_handle, 0);
                     ulTaskNotifyTake(pdTRUE, 1);
+                    LOG_INFO("\033[;1;97;48;5;196mTamper detected:\033[;1;38;5;196m Disconnected from BMS\033[m\n");
                     Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                     Cy_Crypto_Core_Disable(CRYPTO);
                     Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
                     break;
                 } else {
-                    LOG_WARN("Unknown command %02x\n", cmd);
+                    LOG_DEBUG("Unknown command %02x\n", cmd);
                     
                 }
 
@@ -422,7 +425,7 @@ void uart_task(void *arg) {
             int j;
             for (j = 0; j < 16; j++) if (encbuf[j] != our_last_block[j]) break;
             if (j == 16) {
-                LOG_WARN("Received message same as sent message; possible feedback\n");
+                LOG_DEBUG("Received message same as sent message; possible feedback\n");
                 // feedback is banned so it counts as 5 lonely days
                 lonely_days += 5;
                 continue;
@@ -435,16 +438,16 @@ void uart_task(void *arg) {
             Cy_Crypto_Core_Aes_Cbc(CRYPTO, CY_CRYPTO_DECRYPT, 16, ivbuf, plainbuf, encbuf, &aes_state);
             // Last 2 bytes are ID
             if (((uint16_t*)plainbuf)[7] != their_id) {
-                LOG_WARN("Last 2 bytes of received message (%u) isn't their id (%u)", ((uint16_t*)plainbuf)[7], their_id);
+                LOG_DEBUG("Last 2 bytes of received message (%u) isn't their id (%u)", ((uint16_t*)plainbuf)[7], their_id);
                 lonely_days++;
 
                 if (((uint16_t*)plainbuf)[7] == our_id) {
-                    LOG_WARN_NOFMT(", it's ours!!!\n");
+                    LOG_DEBUG_NOFMT(", it's ours!!!\n");
                     lonely_days += 5;
 
                     continue;
                 } else {
-                    LOG_WARN_NOFMT("\n");
+                    LOG_DEBUG_NOFMT("\n");
                 }
             }
 
@@ -472,7 +475,7 @@ char init_uart() {
 
     if (div_num == 255) {
         // couldn't find 8-bit dividers, switch to 16-bit
-        LOG_WARN("Couldn't find any free 8-bit periclk dividers; searching for 16-bit dividers\n");
+        LOG_DEBUG("Couldn't find any free 8-bit periclk dividers; searching for 16-bit dividers\n");
         div_type = CY_SYSCLK_DIV_16_BIT;
         for (int i = PERI_DIV_16_NR - 1; i >= 0; i--) {
             if (Cy_SysClk_PeriphGetDividerEnabled(div_type, i)) continue;
@@ -556,33 +559,35 @@ const char *get_sysclk_status_name(cy_en_sysclk_status_t status) {
 
 void handle_uart_msg(uint32_t cmd, uint8_t* buf, uint16_t* errvar) {
     if (cmd == 0xFFFFFFFF) return 1;
-    static uint8_t last_cmd = UART_MSG_CONN_KEEPALIVE;
+    static uint8_t last_msg = UART_MSG_CONN_KEEPALIVE;
 
     switch (buf[0]) {
         case UART_MSG_CONN_KEEPALIVE:
             // Normal keepalive
-            *errvar = 0;
-
-            if (last_cmd == UART_MSG_CONN_VOLTMETER) {
-                LOG_INFO("Battery voltage restored\n");
+            if (last_msg == UART_MSG_CONN_VOLTMETER) {
+                LOG_INFO("\033[1;32mBattery voltage restored\033[m\n");
             }
+
+            *errvar = 0;
             break;
 
         case UART_MSG_CONN_VOLTMETER:
             // Voltmeter reading
-            if (last_cmd == UART_MSG_CONN_KEEPALIVE) {
+            if (last_msg == UART_MSG_CONN_KEEPALIVE) {
                 float32_t volts;
                 for (int i = 0; i < 4; i++) {
                     ((uint8_t*)&volts)[i] = buf[i + 1];
                 }
-                LOG_INFO("Battery voltage dropped! Reading from BMS: %f\n", volts);
-                *errvar = 0;
+                LOG_INFO("\033[;1;97;48;5;196mTamper detected:\033[;1;38;5;196m Battery voltage dropped to %fv\033[m\n", volts);
             }
+            *errvar = 0;
             break;
 
         default:
-            LOG_WARN("Unknown message sent, counting as failure\n");
+            LOG_DEBUG("Unknown message sent, counting as failure\n");
             (*errvar)++;
             break;
     }
+
+    last_msg = buf[0];
 }

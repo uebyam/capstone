@@ -155,7 +155,7 @@ app_bt_gatt_event_callback(wiced_bt_gatt_evt_t event,
        break;
 
     default:
-        LOG_WARN("Unhandled GATT event %s (%d)\n", get_gatt_event_name(event), event);
+        LOG_DEBUG("Unhandled GATT event %s (%d)\n", get_gatt_event_name(event), event);
         break;
 
     }
@@ -201,7 +201,7 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
         /* Device has disconnected */
         print_bd_address("Disconnected from BDA: ", p_conn_status->bd_addr);
         LOG_DEBUG("Connection ID: '%d'\n", p_conn_status->conn_id);
-        LOG_INFO("Reason for disconnection: \t%s\n",                        \
+        LOG_DEBUG("Reason for disconnection: \t%s\n",                        \
                         get_gatt_disconn_reason_name(p_conn_status->reason));
 
         cyhal_gpio_write(CONNECTION_LED, CYBSP_LED_STATE_OFF);
@@ -280,7 +280,7 @@ app_gatts_attr_req_handler(wiced_bt_gatt_attribute_request_t *p_attr_req,
             break;
 
         case GATT_HANDLE_VALUE_NOTIF:
-            LOG_INFO("Notfication send complete\n");
+            LOG_DEBUG("Notfication send complete\n");
             break;
 
         case GATT_REQ_READ_BY_TYPE:
@@ -292,7 +292,7 @@ app_gatts_attr_req_handler(wiced_bt_gatt_attribute_request_t *p_attr_req,
             break;
 
         default:
-            LOG_WARN("Unhandled GATT Connection Request case: %s (%d)\n", get_gatt_opcode_name(p_attr_req->opcode), p_attr_req->opcode);
+            LOG_DEBUG("Unhandled GATT Connection Request case: %s (%d)\n", get_gatt_opcode_name(p_attr_req->opcode), p_attr_req->opcode);
             break;
 
     }
@@ -391,7 +391,7 @@ app_gatt_attr_write_handler(wiced_bt_gatt_opcode_t opcode,
     index = app_get_attr_index_by_handle(p_write_req->handle);
     if(INVALID_ATT_TBL_INDEX == index)
     {
-        LOG_WARN("Invalid ATT TBL Index : %d\n", index);
+        LOG_DEBUG("Invalid ATT TBL Index : %d\n", index);
         return gatt_status;
     }
 
@@ -400,7 +400,7 @@ app_gatt_attr_write_handler(wiced_bt_gatt_opcode_t opcode,
                                             p_write_req->val_len);
     if( WICED_BT_GATT_SUCCESS != gatt_status )
     {
-        LOG_WARN("GATT set attr status 0x%x\n", gatt_status);
+        LOG_DEBUG("GATT set attr status 0x%x\n", gatt_status);
     }
 
     return (gatt_status);
@@ -438,7 +438,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
     LOG_DEBUG("len_requested %d \n", len_requested);
     if (p_rsp == NULL)
     {
-        LOG_ERR("OOM, len_requested: %d !! \r\n",len_requested);
+        LOG_DEBUG("OOM, len_requested: %d !! \r\n",len_requested);
         return WICED_BT_GATT_INSUF_RESOURCE;
     }
 
@@ -466,7 +466,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
                                         app_gatt_db_ext_attr_tbl[index].p_data);
             if (filled == 0)
             {
-                LOG_WARN("No data is filled\n");
+                LOG_DEBUG("No data is filled\n");
                 break;
             }
             used += filled;
@@ -482,7 +482,7 @@ app_gatt_read_by_type_handler(uint16_t conn_id,
 
     if (used == 0)
     {
-       LOG_ERR("attr not found  start_handle: 0x%04x  end_handle: 0x%04x  Type: 0x%04x\r\n",
+       LOG_DEBUG("attr not found  start_handle: 0x%04x  end_handle: 0x%04x  Type: 0x%04x\r\n",
                p_read_req->s_handle, p_read_req->e_handle, p_read_req->uuid.uu.uuid16);
         app_free_buffer(p_rsp);
         return WICED_BT_GATT_INVALID_HANDLE;

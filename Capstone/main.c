@@ -77,7 +77,7 @@ int main(void) {
     init_userbutton();
     init_lpcomp(1);
     initEEPROM();
-    init_rtc(0);
+    init_rtc(1);
 
     if (init_uart()) {
         LOG_ERR("UART initialisation failed\n");
@@ -120,7 +120,7 @@ void start_bt() {
     wiced_result = wiced_bt_stack_init(app_bt_management_callback, &wiced_bt_cfg_settings);
 
     if (WICED_BT_SUCCESS == wiced_result) {
-        LOG_INFO("Bluetooth Stack Initialization Successful\n");
+        LOG_DEBUG("Bluetooth Stack Initialization Successful\n");
     } else {
         LOG_FATAL("Bluetooth Stack Initialization failed!!\n");
         global_bluetooth_started = false;
@@ -145,12 +145,12 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
             break;
 
         case BTM_BLE_ADVERT_STATE_CHANGED_EVT:
-            LOG_INFO("Advertisement state changed to %s\n",
+            LOG_DEBUG("Advertisement state changed to %s\n",
                     get_ble_advert_mode_name(p_event_data->ble_advert_state_changed));
             break;
 
         default:
-            LOG_WARN("Unhandled bluetooth event: %s (%d)\n", get_btm_event_name(event), event);
+            LOG_DEBUG("Unhandled bluetooth event: %s (%d)\n", get_btm_event_name(event), event);
             break;
     }
 
@@ -174,6 +174,10 @@ static void bt_app_init(void) {
         LOG_DEBUG("GATT database initialisation returned %s\n", get_gatt_status_name(gatt_status));
     }
 
+    app_start_advertisement();
+}
+
+void global_start_advertisement() {
     app_start_advertisement();
 }
 
@@ -227,7 +231,7 @@ void ess_task(void *pvParam) {
         if (global_bluetooth_started) {
             switch (app_tamper_information_tamper_count_client_char_config[0]) {
                 case 0:
-                    LOG_INFO(app_bt_conn_id
+                    LOG_DEBUG(app_bt_conn_id
                             ? "Notifications/indications for tamper count off on host\n"
                             : "Not connected\n");
                     break;
@@ -248,7 +252,7 @@ void ess_task(void *pvParam) {
 
             switch (app_tamper_information_timestamps_client_char_config[0]) {
                 case 0:
-                    LOG_INFO(app_bt_conn_id
+                    LOG_DEBUG(app_bt_conn_id
                             ? "Notifications/indications for timestamps off on host\n"
                             : "Not connected\n");
                     break;

@@ -70,7 +70,8 @@ void userbutton_task(void *refcon) {
         if (!global_bluetooth_started) {
             start_bt();
         } else {
-            LOG_WARN("Bluetooth already started; taking no action\n");
+            LOG_DEBUG("Starting advertisements from user button");
+            global_start_advertisement();
         }
     }
 }

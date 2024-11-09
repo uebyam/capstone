@@ -147,24 +147,19 @@ void setTamperCount(uint8_t val) {
 void getTimestamps(int *timestamps) {
     uint8_t tamper_count;
     cy_en_em_eeprom_status_t eeprom_return_value;
-    // int timestamps[MAX_TIMESTAMP_COUNT];
 
     tamper_count = getTamperCount();
     
     /* Read 15 bytes out of EEPROM memory. */
-    eeprom_return_value = Cy_Em_EEPROM_Read(TIMESTAMP_LOCATION, timestamps,
-                                          TIMESTAMP_SIZE*tamper_count, &Em_EEPROM_context);
     if (tamper_count > 0) {
         eeprom_return_value = Cy_Em_EEPROM_Read(TIMESTAMP_LOCATION, timestamps,
-                                            TIMESTAMP_SIZE*tamper_count, &Em_EEPROM_context);;
+                                            TIMESTAMP_SIZE*tamper_count, &Em_EEPROM_context);
         handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
     } else {
         memset(timestamps, 0, MAX_TIMESTAMP_COUNT * 4);
     }
 
-    // for (int i = 0; i < MAX_TIMESTAMP_COUNT; i++) {}
     return;
-    // printf("\n%d %d %d %d %d %d\n", thing, CY_EM_EEPROM_BAD_PARAM, CY_EM_EEPROM_BAD_CHECKSUM, CY_EM_EEPROM_BAD_DATA, CY_EM_EEPROM_WRITE_FAIL, CY_EM_EEPROM_REDUNDANT_COPY_USED);
 }
 
 /*******************************************************************************
@@ -195,14 +190,14 @@ void handle_eeprom_result(uint32_t status, char *message)
 
             if(NULL != message)
             {
-                LOG_ERR("%s",message);
+                LOG_DEBUG("%s",message);
             }
 
             while(1u);
         }
         else
         {
-            LOG_WARN("%s","Main copy is corrupted. Redundant copy in Emulated EEPROM is used \r\n");
+            LOG_DEBUG("%s","Main copy is corrupted. Redundant copy in Emulated EEPROM is used \r\n");
         }
 
     }
