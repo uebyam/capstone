@@ -229,6 +229,8 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
         gatt_status = wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
                                                     BLE_ADDR_PUBLIC,
                                                     NULL);
+
+        global_bt_page = 0;
     }
 
     return gatt_status;
