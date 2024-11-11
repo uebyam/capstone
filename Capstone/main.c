@@ -35,6 +35,7 @@
 
 #include "main.h"
 bool global_bluetooth_started = false;
+bool global_bluetooth_enabled = false;
 uint8_t global_bt_page = 0;
 
 #include "eepromManager.h"
@@ -157,7 +158,7 @@ int main(void) {
     LOG_DEBUG("Current tamper count: %u\n", tamper_count);
 #endif
 
-    // Bluetooth application initialisation is started from user button
+    start_bt();
     vTaskStartScheduler();
 
     // Should never get here
@@ -190,6 +191,7 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
             print_local_bd_address();
 
             bt_app_init();
+            global_bluetooth_enabled = true;
             break;
 
         case BTM_DISABLED_EVT:
