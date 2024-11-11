@@ -61,7 +61,7 @@ void initEEPROM(void);
 void setTamperCount(uint8_t val);
 uint8_t getTamperCount(void);
 uint8_t increaseTamperCount(void);
-void getTimestamps(int *timestamps);
+void getTimestamps(int *timestamps, size_t offset, size_t count);
 
 /*******************************************************************************
  * External Global Variables

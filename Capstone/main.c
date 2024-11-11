@@ -263,19 +263,16 @@ void ess_task(void *pvParam) {
         uint16_t tamperCount = getTamperCount();
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
-        getTimestamps(timestamps);
+        getTimestamps(timestamps, 0, MAX_TIMESTAMP_COUNT);
         LOG_DEBUG("Timestamp information:\n");
         LOG_DEBUG("");
+
+        if (tamperCount > MAX_TIMESTAMP_COUNT) tamperCount = MAX_TIMESTAMP_COUNT;
+
         memcpy(app_tamper_information_timestamps, timestamps, tamperCount*TIMESTAMP_SIZE);
+
         for (int i = 0; i < tamperCount; i++) {
             LOG_DEBUG_NOFMT("%d ", timestamps[i]);
-        }
-        LOG_DEBUG_NOFMT("\n");
-        LOG_DEBUG("");
-        for (int i = 0; i < tamperCount; i++) {
-            int t;
-            memcpy(&t, &app_tamper_information_timestamps[i*4], 4);
-            LOG_DEBUG_NOFMT("%d ", t);
         }
         LOG_DEBUG_NOFMT("\n");
 
