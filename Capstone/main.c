@@ -261,6 +261,9 @@ static wiced_result_t app_bt_set_advertisement_data(void) {
 }
 
 void ess_task(void *pvParam) {
+    /*                          *                           
+     *      those who know      *
+     *                          */
     int _timestamps[GLOBAL_BT_PAGE_SIZE + 1] = {};
     int *timestamps = &(_timestamps[1]);
     while (true) {
