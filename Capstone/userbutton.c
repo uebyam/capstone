@@ -38,7 +38,7 @@ void init_userbutton() {
         LOG_ERR("User button task creation failed\r\n");
         return;
     } else {
-        LOG_DEBUG("Successfully created user button task\n");
+        LOG_DEBUG("Successfully created user button task\r\n");
     }
 }
 
@@ -70,7 +70,7 @@ void userbutton_task(void *refcon) {
         if (!global_bluetooth_started) {
             start_bt();
         } else {
-            LOG_DEBUG("Starting advertisements from user button");
+            LOG_DEBUG("Starting advertisements from user button\r\n");
             global_start_advertisement();
         }
     }

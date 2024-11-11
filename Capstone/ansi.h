@@ -14,7 +14,7 @@
 // 5: Even more info about what the code is doing
 
 
-#define LOGLEVEL 4
+#define LOGLEVEL 5
 
 #if (LOGLEVEL > 0)
 #define LOG_CLEARFMT() printf("\033[m")

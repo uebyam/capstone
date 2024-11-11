@@ -44,6 +44,11 @@
 /* *****************************************************************************
  *                              INCLUDES
  * ****************************************************************************/
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
 #include "app_bt_gatt_handler.h"
 #include "bt_utils.h"
 #include "GeneratedSource/cycfg_gatt_db.h"
@@ -59,6 +64,11 @@
 #include <timers.h>
 
 #include "ansi.h"
+#include "main.h"
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 /*******************************************************************************
  *                              FUNCTION DECLARATIONS
@@ -518,43 +528,51 @@ wiced_bt_gatt_status_t app_set_gatt_attr_value(uint16_t attr_handle,
 {
     wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_INVALID_HANDLE;
       /* Check for a matching handle entry */
-      if (HDLD_TAMPER_INFORMATION_TAMPER_COUNT_CLIENT_CHAR_CONFIG == attr_handle)
-      {
-          /* Verify that size constraints have been met */
-          if (app_tamper_information_tamper_count_client_char_config_len >= len)
-          {
-              /* Value fits within the supplied buffer; copy over the value */
-              memcpy(app_tamper_information_tamper_count_client_char_config,
-                     p_val,
-                     len);
+    if (HDLD_TAMPER_INFORMATION_TAMPER_COUNT_CLIENT_CHAR_CONFIG == attr_handle)
+    {
+        /* Verify that size constraints have been met */
+        if (app_tamper_information_tamper_count_client_char_config_len >= len)
+        {
+            /* Value fits within the supplied buffer; copy over the value */
+            memcpy(app_tamper_information_tamper_count_client_char_config,
+                   p_val,
+                   len);
 
-              gatt_status = WICED_BT_GATT_SUCCESS;
-          }
-          else
-          {
-              /* Value to write does not meet size constraints */
-              gatt_status = WICED_BT_GATT_INVALID_ATTR_LEN;
-          }
-      } else if (HDLD_TAMPER_INFORMATION_TIMESTAMPS_CLIENT_CHAR_CONFIG == attr_handle)
-      {
-          /* Verify that size constraints have been met */
-          if (app_tamper_information_timestamps_client_char_config_len >= len)
-          {
-              /* Value fits within the supplied buffer; copy over the value */
-              memcpy(app_tamper_information_timestamps_client_char_config,
-                     p_val,
-                     len);
+            gatt_status = WICED_BT_GATT_SUCCESS;
+        }
+        else
+        {
+            /* Value to write does not meet size constraints */
+            gatt_status = WICED_BT_GATT_INVALID_ATTR_LEN;
+        }
+    } else if (HDLD_TAMPER_INFORMATION_TIMESTAMPS_CLIENT_CHAR_CONFIG == attr_handle)
+    {
+        /* Verify that size constraints have been met */
+        if (app_tamper_information_timestamps_client_char_config_len >= len)
+        {
+            /* Value fits within the supplied buffer; copy over the value */
+            memcpy(app_tamper_information_timestamps_client_char_config,
+                   p_val,
+                   len);
 
-              gatt_status = WICED_BT_GATT_SUCCESS;
-          }
-          else
-          {
-              /* Value to write does not meet size constraints */
-              gatt_status = WICED_BT_GATT_INVALID_ATTR_LEN;
-          }
-      }
+            gatt_status = WICED_BT_GATT_SUCCESS;
+        }
+        else
+        {
+            /* Value to write does not meet size constraints */
+            gatt_status = WICED_BT_GATT_INVALID_ATTR_LEN;
+        }
+    } else if (len && HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE == attr_handle) {
+        // Custom code for handling writes to timestamps characteristic
 
-  return (gatt_status);
+        global_bt_page = p_val[0];
+        LOG_DEBUG("Set bluetooth page to %u\n", global_bt_page);
+        xTaskNotifyGive(get_ess_handle());
+
+        gatt_status = WICED_BT_GATT_SUCCESS;
+    }
+
+    return (gatt_status);
 }
 
 /**

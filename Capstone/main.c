@@ -35,6 +35,7 @@
 
 #include "main.h"
 bool global_bluetooth_started = false;
+uint8_t global_bt_page = 0;
 
 #include "eepromManager.h"
 #include "lpcomp.h"
@@ -258,25 +259,21 @@ static wiced_result_t app_bt_set_advertisement_data(void) {
 }
 
 void ess_task(void *pvParam) {
-    int timestamps[MAX_TIMESTAMP_COUNT];
+    int timestamps[GLOBAL_BT_PAGE_SIZE];
     while (true) {
         uint16_t tamperCount = getTamperCount();
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
-        getTimestamps(timestamps, 0, MAX_TIMESTAMP_COUNT);
-        LOG_DEBUG("Timestamp information:\n");
-        LOG_DEBUG("");
+        LOG_DEBUG("Reading %u timestamp(s) at offset %u\n", GLOBAL_BT_PAGE_SIZE, GLOBAL_BT_PAGE_SIZE * global_bt_page);
+        getTimestamps(timestamps, GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
 
-        if (tamperCount > MAX_TIMESTAMP_COUNT) tamperCount = MAX_TIMESTAMP_COUNT;
+        if (tamperCount > GLOBAL_BT_PAGE_SIZE) tamperCount = GLOBAL_BT_PAGE_SIZE;
 
         memcpy(app_tamper_information_timestamps, timestamps, tamperCount*TIMESTAMP_SIZE);
 
-        for (int i = 0; i < tamperCount; i++) {
-            LOG_DEBUG_NOFMT("%d ", timestamps[i]);
-        }
-        LOG_DEBUG_NOFMT("\n");
-
         if (global_bluetooth_started) {
+            LOG_DEBUG("Attempting to send notifications/indications...\n");
+            wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_ERROR;
             switch (app_tamper_information_tamper_count_client_char_config[0]) {
                 case 0:
                     LOG_DEBUG(app_bt_conn_id
@@ -285,19 +282,22 @@ void ess_task(void *pvParam) {
                     break;
                 case 3:
                 case 1:
-                    wiced_bt_gatt_server_send_indication(
+                    gatt_status = wiced_bt_gatt_server_send_indication(
                             app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE,
                             app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
                             NULL);
+                    LOG_DEBUG("Sending tamper count notification returned %s\n", get_gatt_status_name(gatt_status));
                     break;
                 case 2:
-                    wiced_bt_gatt_server_send_notification(
+                    gatt_status = wiced_bt_gatt_server_send_notification(
                             app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
                             app_tamper_information_tamper_count_len, app_tamper_information_tamper_count,
                             NULL);
+                    LOG_DEBUG("Sending tamper count indication returned %s\n", get_gatt_status_name(gatt_status));
                     break;
             }
 
+            LOG_DEBUG("Attempting to send notifications/indications...\n");
             switch (app_tamper_information_timestamps_client_char_config[0]) {
                 case 0:
                     LOG_DEBUG(app_bt_conn_id
@@ -306,16 +306,18 @@ void ess_task(void *pvParam) {
                     break;
                 case 3:
                 case 1:
-                    wiced_bt_gatt_server_send_indication(
+                    gatt_status = wiced_bt_gatt_server_send_indication(
                             app_bt_conn_id, HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE,
                             app_tamper_information_timestamps_len, app_tamper_information_timestamps,
                             NULL);
+                    LOG_DEBUG("Sending timestamps notification returned %s\n", get_gatt_status_name(gatt_status));
                     break;
                 case 2:
-                    wiced_bt_gatt_server_send_notification(
+                    gatt_status = wiced_bt_gatt_server_send_notification(
                             app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
                             app_tamper_information_timestamps_len, app_tamper_information_timestamps,
                             NULL);
+                    LOG_DEBUG("Sending timestamps indication returned %s\n", get_gatt_status_name(gatt_status));
                     break;
             }
         } else {

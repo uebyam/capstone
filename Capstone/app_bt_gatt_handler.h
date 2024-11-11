@@ -60,6 +60,8 @@
 /* The error code for invalid  attribute index in attribute table */
 #define INVALID_ATT_TBL_INDEX            (0xFFFFFFFF)
 
+#define USE_PAGES
+
 /* *****************************************************************************
  *                              VARIABLES
  * ****************************************************************************/
