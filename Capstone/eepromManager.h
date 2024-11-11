@@ -20,7 +20,7 @@ Timestamps - up to 80bytes
 
 #define TIMESTAMP_LOCATION TAMPER_COUNT_SIZE
 #define TIMESTAMP_SIZE (4u)
-#define MAX_TIMESTAMP_COUNT (20)
+#define MAX_TIMESTAMP_COUNT (40)
 
 
 /* Logical Size of Emulated EEPROM in bytes. */
@@ -33,7 +33,7 @@ Timestamps - up to 80bytes
  * access it from ModusToolbox IDE Quick Panel > Documentation> 
  * Cypress Em_EEPROM middleware API reference manual
  */
-#define EEPROM_SIZE             (256u)
+#define EEPROM_SIZE             (1024u)
 #define BLOCKING_WRITE          (1u)
 #define REDUNDANT_COPY          (1u)
 #define WEAR_LEVELLING_FACTOR   (2u)

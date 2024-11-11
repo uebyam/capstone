@@ -174,10 +174,6 @@ void getTimestamps(int *timestamps, size_t offset, size_t count) {
                 &Em_EEPROM_context);
 
         handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
-
-        memset(timestamps + tamper_count, 0, (MAX_TIMESTAMP_COUNT - tamper_count) * 4);
-    } else {
-        memset(timestamps, 0, MAX_TIMESTAMP_COUNT * 4);
     }
 
     return;
