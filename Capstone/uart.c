@@ -16,6 +16,7 @@ bool global_uart_host = 0;
 #include "dh.h"
 #include "main.h"
 #include "ansi.h"
+#include "eepromManager.h"
 
 #ifdef __clang__
 #pragma clang diagnostic pop
@@ -331,6 +332,7 @@ void uart_task(void *arg) {
                 Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                 Cy_Crypto_Core_Disable(CRYPTO);
                 Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
+                increaseTamperCount(EEPROM_TAMPER_TYPE_UART_DISCONNECT);
                 break;
             }
 
@@ -403,6 +405,7 @@ void uart_task(void *arg) {
                     Cy_Crypto_Core_Aes_Free(CRYPTO, &aes_state);
                     Cy_Crypto_Core_Disable(CRYPTO);
                     Cy_Crypto_Core_ClearVuRegisters(CRYPTO);
+                    increaseTamperCount(EEPROM_TAMPER_TYPE_UART_DISCONNECT);
                     break;
                 } else {
                     LOG_DEBUG("Unknown command %02x\n", cmd);
@@ -576,6 +579,7 @@ void handle_uart_msg(uint32_t cmd, uint8_t* buf, uint16_t* errvar) {
                     ((uint8_t*)&volts)[i] = buf[i + 1];
                 }
                 LOG_INFO("\033[;1;97;48;5;196mTamper detected:\033[;1;38;5;196m Battery voltage dropped to %fv\033[m\n", volts);
+                increaseTamperCount(EEPROM_TAMPER_TYPE_BATTERY_VOLTAGE);
             }
             *errvar = 0;
             break;

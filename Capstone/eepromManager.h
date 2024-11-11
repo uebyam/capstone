@@ -22,9 +22,11 @@ Timestamps - up to 80bytes
 #define TIMESTAMP_SIZE (4u)
 #define MAX_TIMESTAMP_COUNT (40)
 
+#define TAMPER_TYPE_LOCATION (TIMESTAMP_LOCATION + TIMESTAMP_SIZE * MAX_TIMESTAMP_COUNT)
+#define TAMPER_TYPE_SIZE (1u)
 
 /* Logical Size of Emulated EEPROM in bytes. */
-#define LOGICAL_EEPROM_SIZE     (TIMESTAMP_LOCATION + MAX_TIMESTAMP_COUNT * TIMESTAMP_SIZE)
+#define LOGICAL_EEPROM_SIZE     (TAMPER_TYPE_LOCATION + MAX_TIMESTAMP_COUNT * TAMPER_TYPE_SIZE)
 #define LOGICAL_EEPROM_START    (0u)
 
 /* EEPROM Configuration details. All the sizes mentioned are in bytes.
@@ -54,14 +56,22 @@ Timestamps - up to 80bytes
 #endif
 
 
+enum {
+    EEPROM_TAMPER_TYPE_BATTERY_LIFT,
+    EEPROM_TAMPER_TYPE_UART_DISCONNECT,
+    EEPROM_TAMPER_TYPE_BATTERY_VOLTAGE,
+};
+typedef uint8_t eeprom_tamper_type_t;
+
+
 /*******************************************************************************
  * Function Prototypes
  ******************************************************************************/
 void initEEPROM(void);
 void setTamperCount(uint8_t val);
 uint8_t getTamperCount(void);
-uint8_t increaseTamperCount(void);
-void getTimestamps(int *timestamps, size_t offset, size_t count);
+uint8_t increaseTamperCount(eeprom_tamper_type_t type);
+void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t count);
 
 /*******************************************************************************
  * External Global Variables

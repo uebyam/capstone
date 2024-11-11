@@ -100,7 +100,7 @@ void comp_task(void *pvParam) {
 
                 LOG_INFO("\033[;1;97;48;5;196mTamper detected:\033[;1;38;5;196m Battery lifted\033[m\n");
 
-                increaseTamperCount();
+                increaseTamperCount(EEPROM_TAMPER_TYPE_BATTERY_LIFT);
                 xTaskNotifyGive(get_ess_handle());
             } else if (!lptimer_running) {
                 lptimer_running = 1;

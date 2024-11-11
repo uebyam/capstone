@@ -44,9 +44,9 @@
                                         <Field>
                                             <FieldProperties>
                                                 <Property id="Name" value="Name"/>
-                                                <Property id="Value" value="Thermistor"/>
+                                                <Property id="Value" value="TDM"/>
                                                 <Property id="Format" value="f_utf8s"/>
-                                                <Property id="ByteLength" value="10"/>
+                                                <Property id="ByteLength" value="3"/>
                                             </FieldProperties>
                                         </Field>
                                     </Fields>
@@ -78,7 +78,7 @@
                                         <Field>
                                             <FieldProperties>
                                                 <Property id="Name" value="Category"/>
-                                                <Property id="EnumValue" value="768"/>
+                                                <Property id="EnumValue" value="0"/>
                                                 <Property id="Format" value="f_16bit"/>
                                             </FieldProperties>
                                         </Field>
@@ -337,6 +337,116 @@
                                         </Descriptor>
                                     </Descriptors>
                                 </Characteristic>
+                                <Characteristic type="org.bluetooth.characteristic.custom">
+                                    <CharacteristicProperties>
+                                        <Property id="DisplayName" value="tamper type"/>
+                                        <Property id="UUID" value="DC455514-6C67-4DDA-B66C-1A5B1766160E"/>
+                                    </CharacteristicProperties>
+                                    <Fields>
+                                        <Field>
+                                            <FieldProperties>
+                                                <Property id="Name" value="tamperType"/>
+                                                <Property id="Value" value=""/>
+                                                <Property id="Format" value="f_uint8_array"/>
+                                                <Property id="ByteLength" value="20"/>
+                                            </FieldProperties>
+                                        </Field>
+                                    </Fields>
+                                    <Properties>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="Read"/>
+                                            <Property id="Present" value="true"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="Write"/>
+                                            <Property id="Present" value="true"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="WriteWithoutResponse"/>
+                                            <Property id="Present" value="false"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="AuthenticatedSignedWrites"/>
+                                            <Property id="Present" value="false"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="ReliableWrite"/>
+                                            <Property id="Present" value="false"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="Notify"/>
+                                            <Property id="Present" value="true"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="Indicate"/>
+                                            <Property id="Present" value="true"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="WritableAuxiliaries"/>
+                                            <Property id="Present" value="false"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                        <BleProperty>
+                                            <Property id="PropertyType" value="Broadcast"/>
+                                            <Property id="Present" value="false"/>
+                                            <Property id="Mandatory" value="false"/>
+                                        </BleProperty>
+                                    </Properties>
+                                    <Permission>
+                                        <Property id="Read" value="true"/>
+                                        <Property id="ReadAuthenticated" value="false"/>
+                                        <Property id="VariableLength" value="false"/>
+                                        <Property id="Write" value="true"/>
+                                        <Property id="WriteNoResponse" value="false"/>
+                                        <Property id="WriteReliable" value="false"/>
+                                        <Property id="WriteAuthenticated" value="false"/>
+                                    </Permission>
+                                    <Descriptors>
+                                        <Descriptor type="org.bluetooth.descriptor.gatt.client_characteristic_configuration">
+                                            <Fields>
+                                                <Field>
+                                                    <FieldProperties>
+                                                        <Property id="Name" value="Properties"/>
+                                                        <Property id="Value" value=""/>
+                                                        <Property id="Format" value="f_16bit"/>
+                                                    </FieldProperties>
+                                                    <BitField>
+                                                        <Property id="BitValue" value="0"/>
+                                                        <Property id="BitValue" value="0"/>
+                                                    </BitField>
+                                                </Field>
+                                            </Fields>
+                                            <Properties>
+                                                <BleProperty>
+                                                    <Property id="PropertyType" value="Read"/>
+                                                    <Property id="Present" value="true"/>
+                                                    <Property id="Mandatory" value="false"/>
+                                                </BleProperty>
+                                                <BleProperty>
+                                                    <Property id="PropertyType" value="Write"/>
+                                                    <Property id="Present" value="true"/>
+                                                    <Property id="Mandatory" value="false"/>
+                                                </BleProperty>
+                                            </Properties>
+                                            <Permission>
+                                                <Property id="Read" value="true"/>
+                                                <Property id="ReadAuthenticated" value="false"/>
+                                                <Property id="VariableLength" value="false"/>
+                                                <Property id="Write" value="true"/>
+                                                <Property id="WriteNoResponse" value="false"/>
+                                                <Property id="WriteReliable" value="false"/>
+                                                <Property id="WriteAuthenticated" value="false"/>
+                                            </Permission>
+                                        </Descriptor>
+                                    </Descriptors>
+                                </Characteristic>
                             </Characteristics>
                         </Service>
                     </Services>
@@ -348,8 +458,8 @@
         <General>
             <Property id="DeviceAddress" value="00A050-000000"/>
             <Property id="MacGeneratedAddress" value="false"/>
-            <Property id="DeviceName" value="Thermistor"/>
-            <Property id="Appearance" value="768"/>
+            <Property id="DeviceName" value="TDM"/>
+            <Property id="Appearance" value="0"/>
             <Property id="HostTxPowerLevel" value="Pos_0"/>
             <Property id="EnableRpaTimeout" value="true"/>
             <Property id="RpaTimeout" value="900"/>

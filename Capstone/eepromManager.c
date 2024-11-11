@@ -103,7 +103,7 @@ uint8_t getTamperCount(void)
     return tamper_count;
 }
 
-uint8_t increaseTamperCount(void) {
+uint8_t increaseTamperCount(eeprom_tamper_type_t tamper_type) {
     /* Return status for EEPROM. */
     cy_en_em_eeprom_status_t eeprom_return_value;
 
@@ -116,8 +116,6 @@ uint8_t increaseTamperCount(void) {
                                           TAMPER_COUNT_SIZE, &Em_EEPROM_context);
     handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Read failed \r\n");
     
-
-    
     read_rtc(&date_time);
     LOG_DEBUG("RTC Read result: %02u:%02u:%02u %02u/%02u/%02u\n",
             date_time.tm_hour, date_time.tm_min, date_time.tm_sec,
@@ -125,10 +123,19 @@ uint8_t increaseTamperCount(void) {
     timestamp = convert_rtc_to_int(&date_time);
     LOG_DEBUG("Converted timestamp: %u\n", timestamp);
     
+    // timestamp
     eeprom_return_value = Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION + TIMESTAMP_SIZE * (tamper_count % MAX_TIMESTAMP_COUNT),
                                             &timestamp,
                                             TIMESTAMP_SIZE,
                                             &Em_EEPROM_context);
+
+    // tamper type
+    eeprom_return_value = Cy_Em_EEPROM_Write(TAMPER_TYPE_LOCATION + TAMPER_TYPE_SIZE * (tamper_count % MAX_TIMESTAMP_COUNT),
+                                            &tamper_type,
+                                            TAMPER_TYPE_SIZE,
+                                            &Em_EEPROM_context);
+    handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
+
 
     tamper_count += 1;
 
@@ -154,7 +161,7 @@ void setTamperCount(uint8_t val) {
     handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
 }
 
-void getTimestamps(int *timestamps, size_t offset, size_t count) {
+void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t count) {
     uint8_t tamper_count;
     cy_en_em_eeprom_status_t eeprom_return_value;
 
@@ -167,13 +174,23 @@ void getTimestamps(int *timestamps, size_t offset, size_t count) {
     
     /* Read 15 bytes out of EEPROM memory. */
     if (tamper_count > 0) {
-        eeprom_return_value = Cy_Em_EEPROM_Read(
-                TIMESTAMP_LOCATION + (offset * TIMESTAMP_SIZE),
-                timestamps,
-                TIMESTAMP_SIZE * tamper_count,
-                &Em_EEPROM_context);
+        if (timestamps) {
+            eeprom_return_value = Cy_Em_EEPROM_Read(
+                    TIMESTAMP_LOCATION + (offset * TIMESTAMP_SIZE),
+                    timestamps,
+                    TIMESTAMP_SIZE * tamper_count,
+                    &Em_EEPROM_context);
 
-        handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
+            handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
+        } else if (tamper_types) {
+            eeprom_return_value = Cy_Em_EEPROM_Read(
+                    TAMPER_TYPE_LOCATION + (offset * TAMPER_TYPE_SIZE),
+                    tamper_types,
+                    TAMPER_TYPE_SIZE * tamper_count,
+                    &Em_EEPROM_context);
+
+            handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
+        }
     }
 
     return;

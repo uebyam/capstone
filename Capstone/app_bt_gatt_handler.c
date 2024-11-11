@@ -564,7 +564,9 @@ wiced_bt_gatt_status_t app_set_gatt_attr_value(uint16_t attr_handle,
             /* Value to write does not meet size constraints */
             gatt_status = WICED_BT_GATT_INVALID_ATTR_LEN;
         }
-    } else if (len && HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE == attr_handle) {
+    } else if (len && (
+                HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE == attr_handle ||
+                HDLC_TAMPER_INFORMATION_TAMPER_TYPE_VALUE == attr_handle)) {
         // Custom code for handling writes to timestamps characteristic
 
         global_bt_page = p_val[0];

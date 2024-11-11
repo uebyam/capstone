@@ -266,20 +266,23 @@ void ess_task(void *pvParam) {
      *                          */
     int _timestamps[GLOBAL_BT_PAGE_SIZE + 1] = {};
     int *timestamps = &(_timestamps[1]);
+    uint8_t _tamper_types[GLOBAL_BT_PAGE_SIZE + 1] = {};
+    uint8_t *tamper_types = &(_tamper_types[1]);
     while (true) {
         uint16_t tamperCount = getTamperCount();
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
         memset(timestamps, 0, GLOBAL_BT_PAGE_SIZE);
         LOG_DEBUG("Reading %u timestamp(s) at offset %u\n", GLOBAL_BT_PAGE_SIZE, GLOBAL_BT_PAGE_SIZE * global_bt_page);
-        getTimestamps(timestamps, GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
+        getTimestamps(timestamps, tamper_types, GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
 
         if (tamperCount > GLOBAL_BT_PAGE_SIZE) tamperCount = GLOBAL_BT_PAGE_SIZE;
 
         memcpy(app_tamper_information_timestamps, _timestamps, sizeof _timestamps);
+        memcpy(app_tamper_information_tamper_count, _tamper_types, sizeof _tamper_types);
 
         if (global_bluetooth_started) {
-            LOG_DEBUG("Attempting to send notifications/indications...\n");
+            LOG_DEBUG("Attempting to send tamper count notifications/indications...\n");
             wiced_bt_gatt_status_t gatt_status = WICED_BT_GATT_ERROR;
             switch (app_tamper_information_tamper_count_client_char_config[0]) {
                 case 0:
@@ -304,7 +307,7 @@ void ess_task(void *pvParam) {
                     break;
             }
 
-            LOG_DEBUG("Attempting to send notifications/indications...\n");
+            LOG_DEBUG("Attempting to send timestamp notifications/indications...\n");
             switch (app_tamper_information_timestamps_client_char_config[0]) {
                 case 0:
                     LOG_DEBUG(app_bt_conn_id
@@ -321,10 +324,34 @@ void ess_task(void *pvParam) {
                     break;
                 case 2:
                     gatt_status = wiced_bt_gatt_server_send_notification(
-                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_COUNT_VALUE, 
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TIMESTAMPS_VALUE, 
                             app_tamper_information_timestamps_len, app_tamper_information_timestamps,
                             NULL);
                     LOG_DEBUG("Sending timestamps indication returned %s\n", get_gatt_status_name(gatt_status));
+                    break;
+            }
+
+            LOG_DEBUG("Attempting to send tamper types notifications/indications...\n");
+            switch (app_tamper_information_tamper_type_client_char_config[0]) {
+                case 0:
+                    LOG_DEBUG(app_bt_conn_id
+                            ? "Notifications/indications for types off on host\n"
+                            : "Not connected\n");
+                    break;
+                case 3:
+                case 1:
+                    gatt_status = wiced_bt_gatt_server_send_indication(
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_TYPE_VALUE,
+                            app_tamper_information_tamper_type_len, app_tamper_information_tamper_type,
+                            NULL);
+                    LOG_DEBUG("Sending types notification returned %s\n", get_gatt_status_name(gatt_status));
+                    break;
+                case 2:
+                    gatt_status = wiced_bt_gatt_server_send_notification(
+                            app_bt_conn_id, HDLC_TAMPER_INFORMATION_TAMPER_TYPE_VALUE, 
+                            app_tamper_information_tamper_type_len, app_tamper_information_tamper_type,
+                            NULL);
+                    LOG_DEBUG("Sending types indication returned %s\n", get_gatt_status_name(gatt_status));
                     break;
             }
         } else {
