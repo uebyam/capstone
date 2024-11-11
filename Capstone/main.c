@@ -261,18 +261,19 @@ static wiced_result_t app_bt_set_advertisement_data(void) {
 }
 
 void ess_task(void *pvParam) {
-    int timestamps[GLOBAL_BT_PAGE_SIZE];
+    int _timestamps[GLOBAL_BT_PAGE_SIZE + 1] = {};
+    int *timestamps = &(_timestamps[1]);
     while (true) {
         uint16_t tamperCount = getTamperCount();
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
-        memset(timestamps, 0, sizeof timestamps);
+        memset(timestamps, 0, GLOBAL_BT_PAGE_SIZE);
         LOG_DEBUG("Reading %u timestamp(s) at offset %u\n", GLOBAL_BT_PAGE_SIZE, GLOBAL_BT_PAGE_SIZE * global_bt_page);
         getTimestamps(timestamps, GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
 
         if (tamperCount > GLOBAL_BT_PAGE_SIZE) tamperCount = GLOBAL_BT_PAGE_SIZE;
 
-        memcpy(app_tamper_information_timestamps, timestamps, tamperCount*TIMESTAMP_SIZE);
+        memcpy(app_tamper_information_timestamps, _timestamps, sizeof _timestamps);
 
         if (global_bluetooth_started) {
             LOG_DEBUG("Attempting to send notifications/indications...\n");
