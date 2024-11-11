@@ -29,8 +29,11 @@ void range_isr() {
     intr = Cy_SAR_GetRangeInterruptStatusMasked(SAR);
     if (intr) {
         Cy_SAR_ClearRangeInterrupt(SAR, intr);
-        rangeIntr = true;
-        lastCode = Cy_SAR_GetResult16(SAR, 0);
+
+        if (!rangeIntr) {
+            rangeIntr = true;
+            lastCode = Cy_SAR_GetResult16(SAR, 0);
+        }
     }
     NVIC_ClearPendingIRQ(pass_0_sar_0_IRQ);
     
@@ -391,7 +394,7 @@ int main() {
                         break;
                     case UART_MSG_CONN_VOLTMETER:
                         {
-                            int16_t code = Cy_SAR_GetResult16(SAR, 0);
+                            int16_t code = lastCode;
                             float32_t val = Cy_SAR_CountsTo_Volts(SAR, 0, code);
                             for (int i = 0; i < 4; i++) {
                                 srcbuf[i + 1] = ((uint8_t*)&val)[i];
