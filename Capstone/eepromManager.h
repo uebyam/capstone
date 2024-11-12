@@ -35,7 +35,7 @@ Timestamps - up to 80bytes
  * access it from ModusToolbox IDE Quick Panel > Documentation> 
  * Cypress Em_EEPROM middleware API reference manual
  */
-#define EEPROM_SIZE             (1024u)
+#define EEPROM_SIZE             (LOGICAL_EEPROM_SIZE)
 #define BLOCKING_WRITE          (1u)
 #define REDUNDANT_COPY          (1u)
 #define WEAR_LEVELLING_FACTOR   (2u)
