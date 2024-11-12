@@ -261,8 +261,8 @@ static wiced_result_t app_bt_set_advertisement_data(void) {
 }
 
 void ess_task(void *pvParam) {
-    int timestamps[GLOBAL_BT_PAGE_SIZE] = {};
-    uint8_t tamper_types[GLOBAL_BT_PAGE_SIZE] = {};
+    int timestamps[GLOBAL_BT_PAGE_SIZE + USE_SPACER_BYTE] = {};
+    uint8_t tamper_types[GLOBAL_BT_PAGE_SIZE + USE_SPACER_BYTE] = {};
     while (true) {
         uint16_t tamperCount = getTamperCount();
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
@@ -270,9 +270,7 @@ void ess_task(void *pvParam) {
         memset(timestamps, 0, sizeof timestamps);
         memset(tamper_types, 0, sizeof tamper_types);
         LOG_DEBUG("Reading %u timestamp(s) at offset %u\n", GLOBAL_BT_PAGE_SIZE, GLOBAL_BT_PAGE_SIZE * global_bt_page);
-        getTimestamps(timestamps, tamper_types, GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
-
-        if (tamperCount > GLOBAL_BT_PAGE_SIZE) tamperCount = GLOBAL_BT_PAGE_SIZE;
+        getTimestamps(&(timestamps[USE_SPACER_BYTE]), &(tamper_types[USE_SPACER_BYTE]), GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
 
         memcpy(app_tamper_information_timestamps, timestamps, sizeof timestamps);
         memcpy(app_tamper_information_tamper_type, tamper_types, sizeof tamper_types);
