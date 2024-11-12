@@ -11,7 +11,7 @@ void start_bt(void);
 void global_start_advertisement(void);
 
 extern uint8_t global_bt_page;
-#define GLOBAL_BT_PAGE_SIZE (19)
+#define GLOBAL_BT_PAGE_SIZE (20)
 
 extern bool global_bluetooth_started;
 extern bool global_bluetooth_enabled;
