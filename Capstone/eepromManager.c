@@ -166,20 +166,18 @@ void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t
     uint8_t tamper_count;
     cy_en_em_eeprom_status_t eeprom_return_value;
 
-    tamper_count = getTamperCount();
+	if (offset >= MAX_TIMESTAMP_COUNT) return;
 
-    if (tamper_count > offset) tamper_count -= offset;
-    else tamper_count = 0;
-
-    if (tamper_count > count) tamper_count = count;
+	if ((count + offset) > MAX_TIMESTAMP_COUNT)
+		count = MAX_TIMESTAMP_COUNT - offset;
     
     /* Read 15 bytes out of EEPROM memory. */
-    if (tamper_count > 0) {
+    if (count > 0) {
         if (timestamps) {
             eeprom_return_value = Cy_Em_EEPROM_Read(
                     TIMESTAMP_LOCATION + (offset * TIMESTAMP_SIZE),
                     timestamps,
-                    TIMESTAMP_SIZE * tamper_count,
+                    TIMESTAMP_SIZE * count,
                     &Em_EEPROM_context);
 
             handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
@@ -189,7 +187,7 @@ void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t
             eeprom_return_value = Cy_Em_EEPROM_Read(
                     TAMPER_TYPE_LOCATION + (offset * TAMPER_TYPE_SIZE),
                     tamper_types,
-                    TAMPER_TYPE_SIZE * tamper_count,
+                    TAMPER_TYPE_SIZE * count,
                     &Em_EEPROM_context);
 
             handle_eeprom_result(eeprom_return_value, "Emulated EEPROM timestamp Read failed \r\n");
