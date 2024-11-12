@@ -272,8 +272,8 @@ void ess_task(void *pvParam) {
         uint16_t tamperCount = getTamperCount();
         *(uint16_t*)app_tamper_information_tamper_count = tamperCount;
         
-        memset(timestamps, 0, GLOBAL_BT_PAGE_SIZE);
-        memset(tamper_types, 0, GLOBAL_BT_PAGE_SIZE);
+        memset(_timestamps, 0, sizeof _timestamps);
+        memset(_tamper_types, 0, sizeof _tamper_types);
         LOG_DEBUG("Reading %u timestamp(s) at offset %u\n", GLOBAL_BT_PAGE_SIZE, GLOBAL_BT_PAGE_SIZE * global_bt_page);
         getTimestamps(timestamps, tamper_types, GLOBAL_BT_PAGE_SIZE * global_bt_page, GLOBAL_BT_PAGE_SIZE);
 
