@@ -12,6 +12,7 @@
 #include "rtc.h"
 #include "ansi.h"
 #include "eepromManager.h"
+#include "main.h"
 
 #ifdef __clang__
 #pragma clang diagnostic pop
@@ -161,6 +162,15 @@ void setTamperCount(uint8_t val) {
 
     handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
 }
+
+void reset_tampers() {
+	setTamperCount(0);
+	char tempbuf1[BT_PAGE_SIZE] = {};
+	uint32_t timebuf[BT_PAGE_SIZE] = {};
+	Cy_Em_EEPROM_Write(TAMPER_TYPE_LOCATION, tempbuf1, sizeof tempbuf1, &Em_EEPROM_context);
+	Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION, timebuf, sizeof timebuf, &Em_EEPROM_context);
+}
+
 
 void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t count) {
     uint8_t tamper_count;

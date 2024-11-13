@@ -23,5 +23,9 @@ extern uint8_t global_bt_page;
 
 extern bool global_bluetooth_started;
 extern bool global_bluetooth_enabled;
+extern bool global_bluetooth_connected;
+extern char global_advertisement_state;
+
+void reset_tampers(void);
 
 #endif

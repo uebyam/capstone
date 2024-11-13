@@ -36,6 +36,7 @@
 #include "main.h"
 bool global_bluetooth_started = false;
 bool global_bluetooth_enabled = false;
+char global_advertisement_state = 0;
 uint8_t global_bt_page = 0;
 
 #include "eepromManager.h"
@@ -201,6 +202,13 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
         case BTM_BLE_ADVERT_STATE_CHANGED_EVT:
             LOG_DEBUG("Advertisement state changed to %s\n",
                     get_ble_advert_mode_name(p_event_data->ble_advert_state_changed));
+			global_advertisement_state = 0;
+			switch (p_event_data->ble_advert_state_changed) {
+				case BTM_BLE_ADVERT_UNDIRECTED_HIGH:
+					global_advertisement_state++;
+				case BTM_BLE_ADVERT_UNDIRECTED_LOW:
+					global_advertisement_state++;
+			}
             break;
 
         default:
@@ -233,6 +241,14 @@ static void bt_app_init(void) {
 
 void global_start_advertisement(void) {
     app_start_advertisement();
+}
+
+void global_stop_advertisement(void) {
+    wiced_result_t wiced_status;
+    wiced_status = wiced_bt_start_advertisements(BTM_BLE_ADVERT_OFF, BLE_ADDR_PUBLIC, NULL);
+    if (WICED_SUCCESS != wiced_status) {
+        LOG_ERR("Stopping Bluetooth LE advertisements failed err 0x%x\n", wiced_status);
+    }
 }
 
 static void app_start_advertisement(void) {

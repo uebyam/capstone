@@ -65,6 +65,7 @@
 
 #include "ansi.h"
 #include "main.h"
+bool global_bluetooth_connected = false;
 
 #ifdef __clang__
 #pragma clang diagnostic pop
@@ -205,6 +206,8 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
                                                         BLE_ADDR_PUBLIC,
                                                         NULL);
 
+		global_bluetooth_connected = true;
+
     }
     else
     {
@@ -226,10 +229,12 @@ app_gatt_connect_handler(wiced_bt_gatt_connection_status_t *p_conn_status)
         // app_custom_service_custom_characteristic_client_char_config[0] = 0;
         app_tamper_information_tamper_count_client_char_config[0] = 1;
         app_tamper_information_timestamps_client_char_config[0] = 1;
+        app_tamper_information_tamper_type_client_char_config[0] = 1;
         gatt_status = wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
                                                     BLE_ADDR_PUBLIC,
                                                     NULL);
 
+		global_bluetooth_connected = false;
         global_bt_page = 0;
     }
 
