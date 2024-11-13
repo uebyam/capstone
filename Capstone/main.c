@@ -118,7 +118,7 @@ int main(void) {
     init_userbutton();
     init_lpcomp(1);
     initEEPROM();
-    init_rtc(1);
+    init_rtc(0);
 
     if (init_uart()) {
         LOG_ERR("UART initialisation failed\n");

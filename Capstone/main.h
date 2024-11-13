@@ -3,6 +3,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include <inttypes.h>
 
 TaskHandle_t get_ess_handle(void);
 
@@ -25,6 +26,7 @@ extern bool global_bluetooth_started;
 extern bool global_bluetooth_enabled;
 extern bool global_bluetooth_connected;
 extern char global_advertisement_state;
+extern bool global_rtc_set;
 
 void reset_tampers(void);
 

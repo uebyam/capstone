@@ -65,6 +65,7 @@
 
 #include "ansi.h"
 #include "main.h"
+#include "eepromManager.h"
 bool global_bluetooth_connected = false;
 
 #ifdef __clang__
@@ -596,7 +597,18 @@ wiced_bt_gatt_status_t app_set_gatt_attr_value(uint16_t attr_handle,
         xTaskNotifyGive(get_ess_handle());
 
         gatt_status = WICED_BT_GATT_SUCCESS;
-    }
+    } else if (len && (HDLC_TAMPER_INFORMATION_SETTIME_VALUE == attr_handle)) {
+		// Custom code for handling writes to settime characteristic
+
+		if (!global_rtc_set) {
+			LOG_DEBUG("Updating timestamps to offset %lld\n", *(time_t*)p_val);
+			updateTamperTimestamps(*(time_t*)p_val);
+			global_rtc_set = true;
+			xTaskNotifyGive(get_ess_handle());
+		}
+
+        gatt_status = WICED_BT_GATT_SUCCESS;
+	}
 
     return (gatt_status);
 }

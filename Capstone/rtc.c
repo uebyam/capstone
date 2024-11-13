@@ -1,6 +1,9 @@
 /******************************************************************************
  * Include header files
  ******************************************************************************/
+#include "rtc.h"
+time_t global_staging_time[MAX_TIMESTAMP_COUNT] = {};
+bool global_rtc_set = false;
 #include "cy_result.h"
 #include "cy_syslib.h"
 #include "cyhal.h"
@@ -13,6 +16,8 @@
 #include "cyhal_uart.h"
 #include "string.h"
 #include "ansi.h"
+#include "main.h"
+#include "eepromManager.h"
 #include <time.h>
 
 /*******************************************************************************
@@ -138,10 +143,20 @@ void init_rtc(bool ask) {
     {
         handle_error();
     }
+
+	for (int i = 0; i < MAX_TIMESTAMP_COUNT; i++) {
+		global_staging_time[i] = (time_t)-1;
+	}
     
 	if (ask) {
 		LOG_INFO("input in HH MM SS DD MM YY\n");
 		set_time(INPUT_TIMEOUT_MS);
+	} else {
+		struct tm new_time = {};
+		time_t zero = 0;
+		localtime_r(&zero, &new_time);
+
+		cyhal_rtc_write(&rtc_obj, &new_time);
 	}
 }
 

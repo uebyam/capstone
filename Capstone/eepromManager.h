@@ -73,6 +73,7 @@ void setTamperCount(uint8_t val);
 uint8_t getTamperCount(void);
 uint8_t increaseTamperCount(eeprom_tamper_type_t type);
 void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t count);
+void updateTamperTimestamps(time_t offset);
 
 /*******************************************************************************
  * External Global Variables
