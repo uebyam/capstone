@@ -16,7 +16,7 @@
     </GeneralProperties>
     <DeviceSpecific>
         <Property id="DeviceSeries" value=""/>
-        <Property id="TxPowerLevels" value=""/>
+        <Property id="TxPowerLevels" value="-16,-12,-8,-4,0,4,8,12"/>
         <Property id="MaxRemoteClientsConnections" value="-1"/>
         <Property id="MaxRemoteServersConnections" value="-1"/>
     </DeviceSpecific>
@@ -121,7 +121,7 @@
                                 <Characteristic type="org.bluetooth.characteristic.custom">
                                     <CharacteristicProperties>
                                         <Property id="DisplayName" value="tamper count"/>
-                                        <Property id="UUID" value="567107C5-CF52-4513-9191-E7D79B8C4CDF"/>
+                                        <Property id="UUID" value="0000"/>
                                     </CharacteristicProperties>
                                     <Fields>
                                         <Field>
@@ -230,7 +230,7 @@
                                 <Characteristic type="org.bluetooth.characteristic.custom">
                                     <CharacteristicProperties>
                                         <Property id="DisplayName" value="timestamps"/>
-                                        <Property id="UUID" value="784FEB50-F952-4373-9E33-CDB3BB48B48E"/>
+                                        <Property id="UUID" value="0001"/>
                                     </CharacteristicProperties>
                                     <Fields>
                                         <Field>
@@ -340,7 +340,7 @@
                                 <Characteristic type="org.bluetooth.characteristic.custom">
                                     <CharacteristicProperties>
                                         <Property id="DisplayName" value="tamper type"/>
-                                        <Property id="UUID" value="DC455514-6C67-4DDA-B66C-1A5B1766160E"/>
+                                        <Property id="UUID" value="0002"/>
                                     </CharacteristicProperties>
                                     <Fields>
                                         <Field>
@@ -450,7 +450,7 @@
                                 <Characteristic type="org.bluetooth.characteristic.custom">
                                     <CharacteristicProperties>
                                         <Property id="DisplayName" value="settime"/>
-                                        <Property id="UUID" value="74686F73-6520-7768-6F20-6B6E6F773A00"/>
+                                        <Property id="UUID" value="0003"/>
                                     </CharacteristicProperties>
                                     <Fields>
                                         <Field>

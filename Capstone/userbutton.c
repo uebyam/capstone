@@ -77,10 +77,12 @@ void userbutton_task(void *refcon) {
 			reset_tampers();
 			xTaskNotifyGive(get_ess_handle());
 
-			if (global_advertisement_state == 0 && global_bluetooth_connected) {
-				global_start_advertisement();
-			} else {
-				global_stop_advertisement();
+			if (!global_bluetooth_connected) {
+				if (global_advertisement_state == 0) {
+					global_start_advertisement();
+				} else {
+					global_stop_advertisement();
+				}
 			}
         }
     }

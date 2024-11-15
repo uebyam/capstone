@@ -168,6 +168,12 @@ void read_rtc(struct tm *date_time){
     }
 }
 
+void write_rtc(struct tm *date_time) {
+	cy_rslt_t rslt;
+	rslt = cyhal_rtc_write(&rtc_obj, date_time);
+	if (rslt != CY_RSLT_SUCCESS) handle_error();
+}
+
 int convert_rtc_to_int(struct tm *date_time) {
     return mktime(date_time);
 }

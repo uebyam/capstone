@@ -13,6 +13,7 @@
 
 void init_rtc(bool ask);
 void read_rtc(struct tm *date_time);
+void write_rtc(struct tm *date_time);
 void convert_rtc_to_str(struct tm *date_time, char *date_string);
 int convert_rtc_to_int(struct tm *date_time);
 
