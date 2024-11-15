@@ -109,7 +109,7 @@ uint8_t increaseTamperCount(eeprom_tamper_type_t tamper_type) {
     cy_en_em_eeprom_status_t eeprom_return_value;
 
     struct tm date_time;
-    time_t timestamp;
+    int timestamp;
     uint8_t tamper_count;
     
     /* Read 15 bytes out of EEPROM memory. */
@@ -122,20 +122,17 @@ uint8_t increaseTamperCount(eeprom_tamper_type_t tamper_type) {
             date_time.tm_hour, date_time.tm_min, date_time.tm_sec,
             date_time.tm_mday, date_time.tm_mon, date_time.tm_year);
     timestamp = convert_rtc_to_int(&date_time);
-    LOG_DEBUG("Converted timestamp: %lld\n", timestamp);
-
-	uint32_t index = tamper_count % MAX_TIMESTAMP_COUNT;
-	global_staging_time[index] = timestamp;
+    LOG_DEBUG("Converted timestamp: %u\n", timestamp);
     
     // timestamp
-    eeprom_return_value = Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION + TIMESTAMP_SIZE * index,
+    eeprom_return_value = Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION + TIMESTAMP_SIZE * (tamper_count % MAX_TIMESTAMP_COUNT),
                                             &timestamp,
                                             TIMESTAMP_SIZE,
                                             &Em_EEPROM_context);
     handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
 
     // tamper type
-    eeprom_return_value = Cy_Em_EEPROM_Write(TAMPER_TYPE_LOCATION + TAMPER_TYPE_SIZE * index,
+    eeprom_return_value = Cy_Em_EEPROM_Write(TAMPER_TYPE_LOCATION + TAMPER_TYPE_SIZE * (tamper_count % MAX_TIMESTAMP_COUNT),
                                             &tamper_type,
                                             TAMPER_TYPE_SIZE,
                                             &Em_EEPROM_context);
@@ -156,24 +153,6 @@ uint8_t increaseTamperCount(eeprom_tamper_type_t tamper_type) {
     return tamper_count;
 }
 
-void updateTamperTimestamps(time_t true_time) {
-	cy_en_em_eeprom_status_t eeprom_return_value;
-	struct tm fake_time_s;
-	read_rtc(&fake_time_s);
-	time_t fake_time = mktime(&fake_time_s);
-	for (uint32_t i = 0; i < MAX_TIMESTAMP_COUNT; i++) {
-		if (global_staging_time[i] == (time_t)-1) continue;
-		time_t new_time = global_staging_time[i] + (true_time - fake_time);
-		global_staging_time[i] = (time_t)-1;
-
-		eeprom_return_value = Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION + TIMESTAMP_SIZE * i,
-												&new_time,
-												TIMESTAMP_SIZE,
-												&Em_EEPROM_context);
-		handle_eeprom_result(eeprom_return_value, "Emulated EEPROM Write failed \r\n");
-	}
-}
-
 void setTamperCount(uint8_t val) {
     cy_en_em_eeprom_status_t eeprom_return_value;
     eeprom_return_value = Cy_Em_EEPROM_Write(TAMPER_COUNT_LOCATION,
@@ -190,14 +169,11 @@ void reset_tampers() {
 	uint32_t timebuf[BT_PAGE_SIZE] = {};
 	Cy_Em_EEPROM_Write(TAMPER_TYPE_LOCATION, tempbuf1, sizeof tempbuf1, &Em_EEPROM_context);
 	Cy_Em_EEPROM_Write(TIMESTAMP_LOCATION, timebuf, sizeof timebuf, &Em_EEPROM_context);
-
-	for (int i = 0; i < MAX_TIMESTAMP_COUNT; i++) {
-		global_staging_time[i] = (time_t)-1;
-	}
 }
 
 
 void getTimestamps(int *timestamps, uint8_t *tamper_types, size_t offset, size_t count) {
+    uint8_t tamper_count;
     cy_en_em_eeprom_status_t eeprom_return_value;
 
 	if (offset >= MAX_TIMESTAMP_COUNT) return;

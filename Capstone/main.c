@@ -118,7 +118,7 @@ int main(void) {
     init_userbutton();
     init_lpcomp(1);
     initEEPROM();
-    init_rtc(0);
+    init_rtc(1);
 
     if (init_uart()) {
         LOG_ERR("UART initialisation failed\n");
@@ -188,7 +188,7 @@ static wiced_result_t app_bt_management_callback(wiced_bt_management_evt_t event
             LOG_INFO("Bluetooth enabled\n");
             LOG_INFO("Device name: %s\n", app_gap_device_name);
 
-            LOG_DEBUG(": ");
+            LOG_DEBUG("");
             print_local_bd_address();
 
             bt_app_init();

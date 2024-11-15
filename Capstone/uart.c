@@ -410,7 +410,7 @@ void uart_task(void *arg) {
 					xTaskNotifyGive(get_ess_handle());
                     break;
                 } else {
-                    LOG_DEBUG("Unknown command %02lx\n", cmd);
+                    LOG_DEBUG("Unknown command %02x\n", cmd);
                     
                 }
 
